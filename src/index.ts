@@ -801,7 +801,7 @@ function simpleAppHtml(): string {
       display: grid;
       place-items: center;
       background: rgba(255, 255, 255, 0.84);
-      padding: 12px;
+      padding: 32px;
     }
 
     .modal[hidden] {
@@ -824,7 +824,7 @@ function simpleAppHtml(): string {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 0 12px;
+      padding: 0 32px;
       border-bottom: 1px solid #e5e7eb;
     }
 
@@ -844,6 +844,7 @@ function simpleAppHtml(): string {
 
     .table-wrap {
       overflow: auto;
+      padding: 32px;
     }
 
     table {
@@ -853,30 +854,17 @@ function simpleAppHtml(): string {
       font-size: 13px;
     }
 
-    th,
     td {
-      padding: 12px;
+      padding: 12px 0;
       border-bottom: 1px solid #e5e7eb;
       vertical-align: top;
       text-align: left;
-    }
-
-    th {
-      color: #4b5563;
-      font-weight: 500;
-      white-space: nowrap;
     }
 
     td {
       color: #111827;
       line-height: 1.45;
       overflow-wrap: anywhere;
-    }
-
-    .time-cell {
-      width: 150px;
-      color: #6b7280;
-      font-variant-numeric: tabular-nums;
     }
 
     .action-cell {
@@ -889,22 +877,16 @@ function simpleAppHtml(): string {
       white-space: pre-wrap;
     }
 
-    tbody tr {
-      cursor: pointer;
-    }
-
-    tbody tr:hover {
-      background: #fafafa;
-    }
-
     .delete-history {
-      border-color: #9f1239;
+      border: 0;
+      background: transparent;
       color: #9f1239;
-      padding: 0 10px;
+      padding: 0;
     }
 
     .delete-history:hover {
-      background: #fff1f2;
+      background: transparent;
+      text-decoration: underline;
     }
 
     .pager {
@@ -953,6 +935,10 @@ function simpleAppHtml(): string {
         align-items: stretch;
         flex-direction: column;
         padding: 10px 12px;
+      }
+
+      .table-wrap {
+        padding: 12px;
       }
 
       .pager {
@@ -1007,17 +993,9 @@ function simpleAppHtml(): string {
       </div>
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th class="time-cell">Time</th>
-              <th>Input</th>
-              <th>Result</th>
-              <th class="action-cell">Delete</th>
-            </tr>
-          </thead>
           <tbody id="historyBody">
             <tr>
-              <td colspan="4">No records</td>
+              <td colspan="3">No records</td>
             </tr>
           </tbody>
         </table>
@@ -1066,28 +1044,12 @@ function simpleAppHtml(): string {
       return data;
     }
 
-    function formatTime(value) {
-      if (!value) return "";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return value;
-      const pad = (number) => String(number).padStart(2, "0");
-      return [
-        date.getFullYear(),
-        pad(date.getMonth() + 1),
-        pad(date.getDate())
-      ].join("/") + " " + [
-        pad(date.getHours()),
-        pad(date.getMinutes()),
-        pad(date.getSeconds())
-      ].join(":");
-    }
-
     function fillHistory(items) {
       historyBody.innerHTML = "";
       if (!items.length) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 4;
+        cell.colSpan = 3;
         cell.textContent = "No records";
         row.appendChild(cell);
         historyBody.appendChild(row);
@@ -1096,19 +1058,16 @@ function simpleAppHtml(): string {
 
       for (const item of items) {
         const row = document.createElement("tr");
-        const time = document.createElement("td");
         const source = document.createElement("td");
         const result = document.createElement("td");
         const action = document.createElement("td");
         const deleteButton = document.createElement("button");
-        time.className = "time-cell";
         source.className = "history-source";
         result.className = "history-result";
         action.className = "action-cell";
         deleteButton.className = "delete-history";
         deleteButton.type = "button";
         deleteButton.textContent = "Delete";
-        time.textContent = formatTime(item.createdAt);
         source.textContent = item.text;
         result.textContent = item.translatedText;
         deleteButton.addEventListener("click", async (event) => {
@@ -1116,13 +1075,7 @@ function simpleAppHtml(): string {
           await deleteHistoryItem(item.id);
         });
         action.appendChild(deleteButton);
-        row.append(time, source, result, action);
-        row.addEventListener("click", () => {
-          text.value = item.text;
-          output.textContent = item.translatedText;
-          resultMeta.textContent = "History";
-          closeHistory();
-        });
+        row.append(source, result, action);
         historyBody.appendChild(row);
       }
     }
