@@ -255,7 +255,7 @@ async function requestDeepSeekTranslation(
     throw new HttpError(response.status, result.error?.message ?? "DeepSeek request failed");
   }
 
-  const translatedText = result.choices?.[0]?.message?.content?.trim();
+  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "");
   if (!translatedText) {
     throw new HttpError(502, "DeepSeek returned an empty translation");
   }
@@ -458,17 +458,22 @@ function buildSystemPrompt(targetLang: string, sourceLang: string | undefined, t
       ? ""
       : [
           "",
-          "Use this glossary when the source text contains the matching term:",
-          ...terms.map((term) => `- ${term.source_text} => ${term.target_text}`),
+          "Glossary terms:",
+          ...terms.map((term) => `  ${term.source_text} => ${term.target_text}`),
         ].join("\n");
 
   return [
     "You are an English-Chinese bidirectional translator.",
     "If the input is mainly English, translate it into natural Simplified Chinese.",
     "If the input is mainly Chinese, translate it into natural English.",
+    "Always return plain text only.",
+    "Do not use Markdown formatting, headings, bold markers, bullet markers, numbered lists, hyphen bullets, asterisks, or backticks.",
+    "Use normal line breaks, indentation, and blank lines for structure.",
     "If the input is a single word or a short vocabulary item, produce a compact dictionary-style answer instead of only one translation.",
-    "For a vocabulary item, include distinct parts of speech when applicable, concise meanings, and one natural example sentence for each important sense.",
-    "For sentences or longer passages, return only the translation and preserve paragraph breaks, numbering, punctuation intent, names, technical terms, and Markdown formatting.",
+    "For vocabulary items, use common English part-of-speech abbreviations such as n., v., adj., adv., prep., conj., pron., interj., and phr.",
+    "For each important part of speech, include a concise meaning and one natural example sentence.",
+    "Format vocabulary entries like this: word, blank line, part of speech and meaning, indented example sentence.",
+    "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
     "Do not add unrelated explanations.",
     glossary,
   ]
@@ -574,6 +579,18 @@ function isCachedTranslation(value: unknown): value is ReturnType<typeof transla
 
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function normalizePlainTextOutput(value: string): string {
+  return value
+    .replace(/```[a-zA-Z0-9_-]*\n?/g, "")
+    .replace(/```/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/`/g, "")
+    .split("\n")
+    .map((line) => line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(/^\s*[-*+]\s+/, "  "))
+    .join("\n")
+    .trim();
 }
 
 function json(data: unknown, status = 200): Response {
@@ -701,19 +718,14 @@ function simpleAppHtml(): string {
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      min-height: 520px;
+      grid-template-rows: minmax(250px, 36vh) minmax(300px, auto);
       border-bottom: 1px solid #e5e7eb;
     }
 
-    .pane {
+    .workspace > * {
       display: flex;
       min-width: 0;
       flex-direction: column;
-    }
-
-    .pane:first-child {
-      border-right: 1px solid #e5e7eb;
     }
 
     .pane-head {
@@ -732,7 +744,7 @@ function simpleAppHtml(): string {
     .output {
       flex: 1;
       width: 100%;
-      min-height: 420px;
+      min-height: 0;
       border: 0;
       border-radius: 0;
       margin: 0;
@@ -746,6 +758,10 @@ function simpleAppHtml(): string {
       white-space: pre-wrap;
       overflow: auto;
       text-wrap: pretty;
+    }
+
+    .workspace > :first-child {
+      border-bottom: 1px solid #e5e7eb;
     }
 
     textarea:focus {
@@ -784,17 +800,7 @@ function simpleAppHtml(): string {
       }
 
       .workspace {
-        grid-template-columns: 1fr;
-      }
-
-      .pane:first-child {
-        border-right: 0;
-        border-bottom: 1px solid #e5e7eb;
-      }
-
-      textarea,
-      .output {
-        min-height: 280px;
+        grid-template-rows: minmax(240px, 38vh) minmax(280px, auto);
       }
 
       .buttons,
@@ -815,7 +821,7 @@ function simpleAppHtml(): string {
     </header>
 
     <section class="workspace" aria-label="Translator">
-      <form class="pane" id="translateForm">
+      <form id="translateForm">
         <div class="pane-head">
           <span>Input</span>
           <span>Auto direction</span>
@@ -823,7 +829,7 @@ function simpleAppHtml(): string {
         <textarea id="text" name="text" placeholder="输入中文或英文"></textarea>
       </form>
 
-      <section class="pane" aria-label="Result">
+      <section aria-label="Result">
         <div class="pane-head">
           <span>Result</span>
           <span id="resultMeta">No result</span>
@@ -833,7 +839,7 @@ function simpleAppHtml(): string {
     </section>
 
     <div class="actions">
-      <div class="hint">单个单词会返回词性解释和例句；句子和段落会直接英中互译。</div>
+      <div class="hint">单个单词会返回 n. / v. / adj. 等词性解释和例句；句子和段落会直接英中互译。</div>
       <div class="buttons">
         <button type="button" id="copyButton">Copy</button>
         <button class="primary" form="translateForm" id="translateButton" type="submit">Translate</button>
