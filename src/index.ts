@@ -256,7 +256,7 @@ async function requestDeepSeekTranslation(
     throw new HttpError(response.status, result.error?.message ?? "DeepSeek request failed");
   }
 
-  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "");
+  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "", input.text);
   if (!translatedText) {
     throw new HttpError(502, "DeepSeek returned an empty translation");
   }
@@ -474,7 +474,8 @@ function buildSystemPrompt(targetLang: string, sourceLang: string | undefined, t
     "For vocabulary items, use common English part-of-speech abbreviations such as n., v., adj., adv., prep., conj., pron., interj., and phr.",
     "For each important part of speech, include a concise meaning, one natural example sentence in the source language, and the translation of that example sentence.",
     "For verbs, also include common forms: base, third-person singular, past tense, past participle, and present participle when the source item is English; include the closest English verb forms when the source item is Chinese.",
-    "Format vocabulary entries like this: word, blank line, part of speech and meaning, indented Forms line for verbs, indented Example line, indented Translation line.",
+    "Do not repeat the queried word as a standalone title or heading in the result.",
+    "Start vocabulary entries directly with the part of speech and meaning, followed by indented Forms line for verbs, indented Example line, and indented Translation line.",
     "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
     "Do not add unrelated explanations.",
     glossary,
@@ -583,8 +584,8 @@ function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
 
-function normalizePlainTextOutput(value: string): string {
-  return value
+function normalizePlainTextOutput(value: string, sourceText: string): string {
+  const cleaned = value
     .replace(/```[a-zA-Z0-9_-]*\n?/g, "")
     .replace(/```/g, "")
     .replace(/\*\*/g, "")
@@ -593,6 +594,11 @@ function normalizePlainTextOutput(value: string): string {
     .map((line) => line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(/^\s*[-*+]\s+/, "  "))
     .join("\n")
     .trim();
+  const lines = cleaned.split("\n");
+  if (lines[0]?.trim().toLowerCase() === sourceText.trim().toLowerCase()) {
+    return lines.slice(1).join("\n").trim();
+  }
+  return cleaned;
 }
 
 function json(data: unknown, status = 200): Response {
@@ -651,7 +657,7 @@ function simpleAppHtml(): string {
     }
 
     button {
-      min-height: 40px;
+      height: 32px;
       border: 1px solid #111827;
       border-radius: 0;
       background: #ffffff;
@@ -795,7 +801,7 @@ function simpleAppHtml(): string {
       display: grid;
       place-items: center;
       background: rgba(255, 255, 255, 0.84);
-      padding: 20px;
+      padding: 12px;
     }
 
     .modal[hidden] {
@@ -805,8 +811,8 @@ function simpleAppHtml(): string {
     .history-dialog {
       display: grid;
       grid-template-rows: auto 1fr auto;
-      width: 60vw;
-      height: 60vh;
+      width: 80vw;
+      height: 80vh;
       border: 1px solid #111827;
       background: #ffffff;
     }
@@ -818,13 +824,17 @@ function simpleAppHtml(): string {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 0 14px;
+      padding: 0 12px;
       border-bottom: 1px solid #e5e7eb;
     }
 
     .dialog-foot {
       border-top: 1px solid #e5e7eb;
       border-bottom: 0;
+    }
+
+    .dialog-foot[hidden] {
+      display: none;
     }
 
     .dialog-title {
@@ -845,7 +855,7 @@ function simpleAppHtml(): string {
 
     th,
     td {
-      padding: 10px 12px;
+      padding: 12px;
       border-bottom: 1px solid #e5e7eb;
       vertical-align: top;
       text-align: left;
@@ -869,6 +879,11 @@ function simpleAppHtml(): string {
       font-variant-numeric: tabular-nums;
     }
 
+    .action-cell {
+      width: 92px;
+      text-align: right;
+    }
+
     .history-source,
     .history-result {
       white-space: pre-wrap;
@@ -880,6 +895,16 @@ function simpleAppHtml(): string {
 
     tbody tr:hover {
       background: #fafafa;
+    }
+
+    .delete-history {
+      border-color: #9f1239;
+      color: #9f1239;
+      padding: 0 10px;
+    }
+
+    .delete-history:hover {
+      background: #fff1f2;
     }
 
     .pager {
@@ -987,16 +1012,17 @@ function simpleAppHtml(): string {
               <th class="time-cell">Time</th>
               <th>Input</th>
               <th>Result</th>
+              <th class="action-cell">Delete</th>
             </tr>
           </thead>
           <tbody id="historyBody">
             <tr>
-              <td colspan="3">No records</td>
+              <td colspan="4">No records</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div class="dialog-foot">
+      <div class="dialog-foot" id="historyPager" hidden>
         <div class="pager-state" id="historyPageState">Page 1</div>
         <div class="pager">
           <button type="button" id="prevHistoryButton">Prev</button>
@@ -1019,6 +1045,7 @@ function simpleAppHtml(): string {
     const prevHistoryButton = document.querySelector("#prevHistoryButton");
     const nextHistoryButton = document.querySelector("#nextHistoryButton");
     const historyBody = document.querySelector("#historyBody");
+    const historyPager = document.querySelector("#historyPager");
     const historyPageState = document.querySelector("#historyPageState");
     const historyPageSize = 15;
     let historyPage = 0;
@@ -1043,7 +1070,16 @@ function simpleAppHtml(): string {
       if (!value) return "";
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return value;
-      return date.toLocaleString();
+      const pad = (number) => String(number).padStart(2, "0");
+      return [
+        date.getFullYear(),
+        pad(date.getMonth() + 1),
+        pad(date.getDate())
+      ].join("/") + " " + [
+        pad(date.getHours()),
+        pad(date.getMinutes()),
+        pad(date.getSeconds())
+      ].join(":");
     }
 
     function fillHistory(items) {
@@ -1051,7 +1087,7 @@ function simpleAppHtml(): string {
       if (!items.length) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 3;
+        cell.colSpan = 4;
         cell.textContent = "No records";
         row.appendChild(cell);
         historyBody.appendChild(row);
@@ -1063,13 +1099,24 @@ function simpleAppHtml(): string {
         const time = document.createElement("td");
         const source = document.createElement("td");
         const result = document.createElement("td");
+        const action = document.createElement("td");
+        const deleteButton = document.createElement("button");
         time.className = "time-cell";
         source.className = "history-source";
         result.className = "history-result";
+        action.className = "action-cell";
+        deleteButton.className = "delete-history";
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete";
         time.textContent = formatTime(item.createdAt);
         source.textContent = item.text;
         result.textContent = item.translatedText;
-        row.append(time, source, result);
+        deleteButton.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          await deleteHistoryItem(item.id);
+        });
+        action.appendChild(deleteButton);
+        row.append(time, source, result, action);
         row.addEventListener("click", () => {
           text.value = item.text;
           output.textContent = item.translatedText;
@@ -1086,10 +1133,29 @@ function simpleAppHtml(): string {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "History request failed");
       historyHasNext = data.items.length > historyPageSize;
-      fillHistory(data.items.slice(0, historyPageSize));
+      const visibleItems = data.items.slice(0, historyPageSize);
+      fillHistory(visibleItems);
       historyPageState.textContent = "Page " + (page + 1);
       prevHistoryButton.disabled = page === 0;
       nextHistoryButton.disabled = !historyHasNext;
+      historyPager.hidden = page === 0 && !historyHasNext;
+      return visibleItems.length;
+    }
+
+    async function deleteHistoryItem(id) {
+      setStatus("Deleting");
+      const response = await fetch("/api/translations/" + id, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) {
+        setStatus(data.error || "Delete failed");
+        return;
+      }
+      const visibleCount = await loadHistory(historyPage);
+      if (visibleCount === 0 && historyPage > 0 && !historyHasNext) {
+        historyPage -= 1;
+        await loadHistory(historyPage);
+      }
+      setStatus("Deleted");
     }
 
     async function openHistory() {
