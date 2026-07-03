@@ -56,6 +56,7 @@ const HTML_HEADERS = {
 
 const FIXED_MODEL = "deepseek-v4-flash";
 const TRANSLATION_PAIR = "en-zh-auto";
+const PROMPT_VERSION = "plain-dictionary-v2";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -125,7 +126,7 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
   const force = body.force === true;
 
   const sourceHash = await sha256(text);
-  const cacheKey = await sha256(JSON.stringify({ text, targetLang, model }));
+  const cacheKey = await sha256(JSON.stringify({ text, targetLang, model, promptVersion: PROMPT_VERSION }));
 
   if (!force) {
     const cached = await env.TRANSLATION_CACHE.get(`translation:${cacheKey}`, "json");
@@ -471,8 +472,9 @@ function buildSystemPrompt(targetLang: string, sourceLang: string | undefined, t
     "Use normal line breaks, indentation, and blank lines for structure.",
     "If the input is a single word or a short vocabulary item, produce a compact dictionary-style answer instead of only one translation.",
     "For vocabulary items, use common English part-of-speech abbreviations such as n., v., adj., adv., prep., conj., pron., interj., and phr.",
-    "For each important part of speech, include a concise meaning and one natural example sentence.",
-    "Format vocabulary entries like this: word, blank line, part of speech and meaning, indented example sentence.",
+    "For each important part of speech, include a concise meaning, one natural example sentence in the source language, and the translation of that example sentence.",
+    "For verbs, also include common forms: base, third-person singular, past tense, past participle, and present participle when the source item is English; include the closest English verb forms when the source item is Chinese.",
+    "Format vocabulary entries like this: word, blank line, part of speech and meaning, indented Forms line for verbs, indented Example line, indented Translation line.",
     "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
     "Do not add unrelated explanations.",
     glossary,
@@ -787,6 +789,112 @@ function simpleAppHtml(): string {
       gap: 8px;
     }
 
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.84);
+      padding: 20px;
+    }
+
+    .modal[hidden] {
+      display: none;
+    }
+
+    .history-dialog {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      width: 60vw;
+      height: 60vh;
+      border: 1px solid #111827;
+      background: #ffffff;
+    }
+
+    .dialog-head,
+    .dialog-foot {
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dialog-foot {
+      border-top: 1px solid #e5e7eb;
+      border-bottom: 0;
+    }
+
+    .dialog-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .table-wrap {
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      color: #4b5563;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    td {
+      color: #111827;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .time-cell {
+      width: 150px;
+      color: #6b7280;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .history-source,
+    .history-result {
+      white-space: pre-wrap;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: #fafafa;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pager-state {
+      color: #4b5563;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
     @media (max-width: 760px) {
       .shell {
         width: min(100% - 20px, 1080px);
@@ -805,6 +913,24 @@ function simpleAppHtml(): string {
 
       .buttons,
       button {
+        width: 100%;
+      }
+
+      .history-dialog {
+        width: 92vw;
+        height: 74vh;
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .dialog-head,
+      .dialog-foot {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 10px 12px;
+      }
+
+      .pager {
         width: 100%;
       }
     }
@@ -841,11 +967,44 @@ function simpleAppHtml(): string {
     <div class="actions">
       <div class="hint">单个单词会返回 n. / v. / adj. 等词性解释和例句；句子和段落会直接英中互译。</div>
       <div class="buttons">
+        <button type="button" id="historyButton">History</button>
         <button type="button" id="copyButton">Copy</button>
         <button class="primary" form="translateForm" id="translateButton" type="submit">Translate</button>
       </div>
     </div>
   </main>
+
+  <div class="modal" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="historyTitle" hidden>
+    <section class="history-dialog">
+      <div class="dialog-head">
+        <div class="dialog-title" id="historyTitle">History</div>
+        <button type="button" id="closeHistoryButton">Close</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="time-cell">Time</th>
+              <th>Input</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr>
+              <td colspan="3">No records</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="dialog-foot">
+        <div class="pager-state" id="historyPageState">Page 1</div>
+        <div class="pager">
+          <button type="button" id="prevHistoryButton">Prev</button>
+          <button type="button" id="nextHistoryButton">Next</button>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <script>
     const text = document.querySelector("#text");
@@ -854,6 +1013,16 @@ function simpleAppHtml(): string {
     const resultMeta = document.querySelector("#resultMeta");
     const translateButton = document.querySelector("#translateButton");
     const copyButton = document.querySelector("#copyButton");
+    const historyButton = document.querySelector("#historyButton");
+    const historyModal = document.querySelector("#historyModal");
+    const closeHistoryButton = document.querySelector("#closeHistoryButton");
+    const prevHistoryButton = document.querySelector("#prevHistoryButton");
+    const nextHistoryButton = document.querySelector("#nextHistoryButton");
+    const historyBody = document.querySelector("#historyBody");
+    const historyPageState = document.querySelector("#historyPageState");
+    const historyPageSize = 15;
+    let historyPage = 0;
+    let historyHasNext = false;
 
     function setStatus(value) {
       status.textContent = value;
@@ -868,6 +1037,74 @@ function simpleAppHtml(): string {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Request failed");
       return data;
+    }
+
+    function formatTime(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    function fillHistory(items) {
+      historyBody.innerHTML = "";
+      if (!items.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 3;
+        cell.textContent = "No records";
+        row.appendChild(cell);
+        historyBody.appendChild(row);
+        return;
+      }
+
+      for (const item of items) {
+        const row = document.createElement("tr");
+        const time = document.createElement("td");
+        const source = document.createElement("td");
+        const result = document.createElement("td");
+        time.className = "time-cell";
+        source.className = "history-source";
+        result.className = "history-result";
+        time.textContent = formatTime(item.createdAt);
+        source.textContent = item.text;
+        result.textContent = item.translatedText;
+        row.append(time, source, result);
+        row.addEventListener("click", () => {
+          text.value = item.text;
+          output.textContent = item.translatedText;
+          resultMeta.textContent = "History";
+          closeHistory();
+        });
+        historyBody.appendChild(row);
+      }
+    }
+
+    async function loadHistory(page) {
+      const offset = page * historyPageSize;
+      const response = await fetch("/api/translations?limit=" + (historyPageSize + 1) + "&offset=" + offset);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "History request failed");
+      historyHasNext = data.items.length > historyPageSize;
+      fillHistory(data.items.slice(0, historyPageSize));
+      historyPageState.textContent = "Page " + (page + 1);
+      prevHistoryButton.disabled = page === 0;
+      nextHistoryButton.disabled = !historyHasNext;
+    }
+
+    async function openHistory() {
+      historyModal.hidden = false;
+      setStatus("Loading history");
+      try {
+        await loadHistory(historyPage);
+        setStatus("Ready");
+      } catch (error) {
+        setStatus(error.message);
+      }
+    }
+
+    function closeHistory() {
+      historyModal.hidden = true;
     }
 
     document.querySelector("#translateForm").addEventListener("submit", async (event) => {
@@ -893,11 +1130,44 @@ function simpleAppHtml(): string {
       }
     });
 
+    text.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+      event.preventDefault();
+      document.querySelector("#translateForm").requestSubmit();
+    });
+
     copyButton.addEventListener("click", async () => {
       const value = output.textContent.trim();
       if (!value) return;
       await navigator.clipboard.writeText(value);
       setStatus("Copied");
+    });
+
+    historyButton.addEventListener("click", () => {
+      historyPage = 0;
+      openHistory();
+    });
+
+    closeHistoryButton.addEventListener("click", closeHistory);
+
+    historyModal.addEventListener("click", (event) => {
+      if (event.target === historyModal) closeHistory();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !historyModal.hidden) closeHistory();
+    });
+
+    prevHistoryButton.addEventListener("click", async () => {
+      if (historyPage === 0) return;
+      historyPage -= 1;
+      await loadHistory(historyPage);
+    });
+
+    nextHistoryButton.addEventListener("click", async () => {
+      if (!historyHasNext) return;
+      historyPage += 1;
+      await loadHistory(historyPage);
     });
   </script>
 </body>

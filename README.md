@@ -7,6 +7,8 @@ Personal Cloudflare Worker for English-Chinese translation with DeepSeek, D1 his
 - `GET /` serves the translation interface.
 - `POST /api/translate` translates between English and Chinese through `deepseek-v4-flash`.
 - Single-word inputs return plain-text dictionary-style parts of speech, meanings, and example sentences.
+- Pressing Enter triggers translation. Use Shift+Enter for a line break.
+- The History button opens a 15-item paginated translation history table.
 - D1 stores translation history.
 - KV caches repeated translation responses.
 - `GET /health` is public for deployment checks.
