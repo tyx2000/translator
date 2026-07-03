@@ -1,0 +1,22 @@
+name = "vocabulary-worker"
+main = "src/index.ts"
+compatibility_date = "2026-07-03"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+APP_ENV = "development"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+CACHE_TTL_SECONDS = "2592000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vocabulary"
+database_id = "replace-with-cloudflare-d1-database-id"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "TRANSLATION_CACHE"
+id = "replace-with-cloudflare-kv-namespace-id"
