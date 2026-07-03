@@ -11,7 +11,6 @@ Personal Cloudflare Worker for English-Chinese translation with DeepSeek, D1 his
 - The History button opens a 15-item paginated translation history table with per-row deletion.
 - D1 stores translation history.
 - KV caches repeated translation responses.
-- `GET /health` is public for deployment checks.
 
 ## Cloudflare resources
 
@@ -100,32 +99,8 @@ The service automatically decides English-to-Chinese or Chinese-to-English and a
 
 ```bash
 GET /api/translations?limit=50&offset=0
-GET /api/translations/:id
 DELETE /api/translations/:id
 ```
-
-### Glossary terms
-
-```bash
-GET /api/terms?q=worker&targetLang=zh-CN
-POST /api/terms
-PATCH /api/terms/:id
-DELETE /api/terms/:id
-```
-
-Create or update a glossary term:
-
-```json
-{
-  "sourceText": "Cloudflare Worker",
-  "targetText": "Cloudflare Worker",
-  "sourceLang": "en",
-  "targetLang": "zh-CN",
-  "note": "Keep product name unchanged."
-}
-```
-
-Terms that appear in the source text are added to the DeepSeek system prompt.
 
 ## Deploy
 

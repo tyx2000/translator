@@ -1,51 +1,19 @@
 type TranslationRequest = {
   text?: unknown;
-  targetLang?: unknown;
-  sourceLang?: unknown;
-  model?: unknown;
-  force?: unknown;
-};
-
-type TermRequest = {
-  sourceText?: unknown;
-  targetText?: unknown;
-  sourceLang?: unknown;
-  targetLang?: unknown;
-  note?: unknown;
 };
 
 type TranslationRow = {
   id: number;
-  source_hash: string;
   source_text: string;
   translated_text: string;
-  source_lang: string | null;
-  target_lang: string;
-  model: string;
-  provider: string;
   cache_key: string;
-  prompt_tokens: number | null;
-  completion_tokens: number | null;
-  total_tokens: number | null;
   created_at: string;
-};
-
-type TermRow = {
-  id: number;
-  source_text: string;
-  target_text: string;
-  source_lang: string | null;
-  source_lang_key: string;
-  target_lang: string;
-  note: string | null;
-  created_at: string;
-  updated_at: string;
 };
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "access-control-allow-methods": "GET,POST,DELETE,OPTIONS",
   "access-control-allow-headers": "content-type",
 };
 
@@ -55,7 +23,6 @@ const HTML_HEADERS = {
 };
 
 const FIXED_MODEL = "deepseek-v4-flash";
-const TRANSLATION_PAIR = "en-zh-auto";
 const PROMPT_VERSION = "plain-dictionary-v2";
 
 export default {
@@ -65,10 +32,6 @@ export default {
     }
 
     const url = new URL(request.url);
-
-    if (request.method === "GET" && url.pathname === "/health") {
-      return json({ ok: true, env: env.APP_ENV ?? "unknown" });
-    }
 
     if (request.method === "GET" && url.pathname === "/") {
       return html(simpleAppHtml());
@@ -84,27 +47,8 @@ export default {
       }
 
       const translationId = matchId(url.pathname, "/api/translations/");
-      if (translationId && request.method === "GET") {
-        return await getTranslation(translationId, env);
-      }
       if (translationId && request.method === "DELETE") {
         return await deleteTranslation(translationId, env);
-      }
-
-      if (request.method === "GET" && url.pathname === "/api/terms") {
-        return await listTerms(url, env);
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/terms") {
-        return await createTerm(request, env);
-      }
-
-      const termId = matchId(url.pathname, "/api/terms/");
-      if (termId && request.method === "PATCH") {
-        return await updateTerm(termId, request, env);
-      }
-      if (termId && request.method === "DELETE") {
-        return await deleteTerm(termId, env);
       }
 
       return json({ error: "Not found" }, 404);
@@ -120,76 +64,43 @@ export default {
 async function translate(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const body = await readJson<TranslationRequest>(request);
   const text = requiredString(body.text, "text");
-  const targetLang = TRANSLATION_PAIR;
-  const sourceLang = undefined;
-  const model = FIXED_MODEL;
-  const force = body.force === true;
+  const cacheKey = await sha256(JSON.stringify({ text, model: FIXED_MODEL, promptVersion: PROMPT_VERSION }));
 
-  const sourceHash = await sha256(text);
-  const cacheKey = await sha256(JSON.stringify({ text, targetLang, model, promptVersion: PROMPT_VERSION }));
-
-  if (!force) {
-    const cached = await env.TRANSLATION_CACHE.get(`translation:${cacheKey}`, "json");
-    if (isCachedTranslation(cached)) {
-      return json({ ...cached, cached: true, cacheSource: "kv" });
-    }
-
-    const existing = await env.DB.prepare(
-      `SELECT * FROM translations WHERE cache_key = ? LIMIT 1`,
-    )
-      .bind(cacheKey)
-      .first<TranslationRow>();
-
-    if (existing) {
-      const payload = translationResponse(existing);
-      ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
-      return json({ ...payload, cached: true, cacheSource: "d1" });
-    }
+  const cached = await env.TRANSLATION_CACHE.get(`translation:${cacheKey}`, "json");
+  if (isCachedTranslation(cached)) {
+    return json({ ...translationPayload(cached), cached: true });
   }
 
-  const termHints = await findRelevantTerms(env, text, sourceLang, targetLang);
-  const deepseek = await requestDeepSeekTranslation(env, {
-    text,
-    sourceLang,
-    targetLang,
-    model,
-    termHints,
-  });
+  const existing = await env.DB.prepare(
+    `SELECT * FROM translations WHERE cache_key = ? LIMIT 1`,
+  )
+    .bind(cacheKey)
+    .first<TranslationRow>();
+
+  if (existing) {
+    const payload = translationResponse(existing);
+    ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
+    return json({ ...payload, cached: true });
+  }
+
+  const translatedText = await requestDeepSeekTranslation(env, text);
 
   await env.DB.prepare(
     `
       INSERT INTO translations (
-        source_hash,
         source_text,
         translated_text,
-        source_lang,
-        target_lang,
-        model,
-        provider,
-        cache_key,
-        prompt_tokens,
-        completion_tokens,
-        total_tokens
+        cache_key
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'deepseek', ?, ?, ?, ?)
+      VALUES (?, ?, ?)
       ON CONFLICT(cache_key) DO UPDATE SET
-        translated_text = excluded.translated_text,
-        prompt_tokens = excluded.prompt_tokens,
-        completion_tokens = excluded.completion_tokens,
-        total_tokens = excluded.total_tokens
+        translated_text = excluded.translated_text
     `,
   )
     .bind(
-      sourceHash,
       text,
-      deepseek.translatedText,
-      sourceLang ?? null,
-      targetLang,
-      model,
+      translatedText,
       cacheKey,
-      deepseek.usage.promptTokens,
-      deepseek.usage.completionTokens,
-      deepseek.usage.totalTokens,
     )
     .run();
 
@@ -203,22 +114,10 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
 
   const payload = translationResponse(saved);
   ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
-  return json({ ...payload, cached: false, cacheSource: null }, 201);
+  return json({ ...payload, cached: false }, 201);
 }
 
-async function requestDeepSeekTranslation(
-  env: Env,
-  input: {
-    text: string;
-    sourceLang?: string;
-    targetLang: string;
-    model: string;
-    termHints: TermRow[];
-  },
-): Promise<{
-  translatedText: string;
-  usage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null };
-}> {
+async function requestDeepSeekTranslation(env: Env, text: string): Promise<string> {
   if (!env.DEEPSEEK_API_KEY) {
     throw new HttpError(500, "DEEPSEEK_API_KEY secret is not configured");
   }
@@ -231,16 +130,16 @@ async function requestDeepSeekTranslation(
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: input.model,
+      model: FIXED_MODEL,
       temperature: 0.2,
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt(input.targetLang, input.sourceLang, input.termHints),
+          content: buildSystemPrompt(),
         },
         {
           role: "user",
-          content: input.text,
+          content: text,
         },
       ],
     }),
@@ -249,60 +148,35 @@ async function requestDeepSeekTranslation(
   const result = (await response.json()) as {
     error?: { message?: string };
     choices?: Array<{ message?: { content?: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
 
   if (!response.ok) {
     throw new HttpError(response.status, result.error?.message ?? "DeepSeek request failed");
   }
 
-  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "", input.text);
+  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "", text);
   if (!translatedText) {
     throw new HttpError(502, "DeepSeek returned an empty translation");
   }
 
-  return {
-    translatedText,
-    usage: {
-      promptTokens: result.usage?.prompt_tokens ?? null,
-      completionTokens: result.usage?.completion_tokens ?? null,
-      totalTokens: result.usage?.total_tokens ?? null,
-    },
-  };
+  return translatedText;
 }
 
 async function listTranslations(url: URL, env: Env): Promise<Response> {
   const limit = clampNumber(url.searchParams.get("limit"), 1, 100, 50);
   const offset = clampNumber(url.searchParams.get("offset"), 0, 100000, 0);
-  const targetLang = url.searchParams.get("targetLang");
 
-  const query = targetLang
-    ? env.DB.prepare(
-        `
-          SELECT * FROM translations
-          WHERE target_lang = ?
-          ORDER BY created_at DESC
-          LIMIT ? OFFSET ?
-        `,
-      ).bind(targetLang, limit, offset)
-    : env.DB.prepare(
-        `
-          SELECT * FROM translations
-          ORDER BY created_at DESC
-          LIMIT ? OFFSET ?
-        `,
-      ).bind(limit, offset);
+  const result = await env.DB.prepare(
+    `
+      SELECT * FROM translations
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `,
+  )
+    .bind(limit, offset)
+    .all<TranslationRow>();
 
-  const result = await query.all<TranslationRow>();
   return json({ items: result.results.map(translationResponse), limit, offset });
-}
-
-async function getTranslation(id: number, env: Env): Promise<Response> {
-  const row = await env.DB.prepare(`SELECT * FROM translations WHERE id = ? LIMIT 1`)
-    .bind(id)
-    .first<TranslationRow>();
-  if (!row) throw new HttpError(404, "Translation not found");
-  return json(translationResponse(row));
 }
 
 async function deleteTranslation(id: number, env: Env): Promise<Response> {
@@ -316,153 +190,7 @@ async function deleteTranslation(id: number, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
-async function listTerms(url: URL, env: Env): Promise<Response> {
-  const limit = clampNumber(url.searchParams.get("limit"), 1, 100, 50);
-  const offset = clampNumber(url.searchParams.get("offset"), 0, 100000, 0);
-  const search = url.searchParams.get("q");
-  const targetLang = url.searchParams.get("targetLang");
-
-  const filters: string[] = [];
-  const binds: Array<string | number> = [];
-
-  if (search) {
-    filters.push("(source_text LIKE ? OR target_text LIKE ?)");
-    binds.push(`%${search}%`, `%${search}%`);
-  }
-  if (targetLang) {
-    filters.push("target_lang = ?");
-    binds.push(targetLang);
-  }
-
-  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-  const result = await env.DB.prepare(
-    `
-      SELECT * FROM terms
-      ${where}
-      ORDER BY updated_at DESC
-      LIMIT ? OFFSET ?
-    `,
-  )
-    .bind(...binds, limit, offset)
-    .all<TermRow>();
-
-  return json({ items: result.results.map(termResponse), limit, offset });
-}
-
-async function createTerm(request: Request, env: Env): Promise<Response> {
-  const body = await readJson<TermRequest>(request);
-  const sourceText = requiredString(body.sourceText, "sourceText");
-  const targetText = requiredString(body.targetText, "targetText");
-  const sourceLang = optionalString(body.sourceLang);
-  const targetLang = requiredString(body.targetLang, "targetLang");
-  const note = optionalString(body.note);
-
-  await env.DB.prepare(
-    `
-      INSERT INTO terms (source_text, target_text, source_lang, source_lang_key, target_lang, note)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(source_text, source_lang_key, target_lang) DO UPDATE SET
-        target_text = excluded.target_text,
-        note = excluded.note,
-        updated_at = CURRENT_TIMESTAMP
-    `,
-  )
-    .bind(sourceText, targetText, sourceLang ?? null, sourceLang ?? "", targetLang, note ?? null)
-    .run();
-
-  const saved = await env.DB.prepare(
-    `
-      SELECT * FROM terms
-      WHERE source_text = ? AND source_lang_key = ? AND target_lang = ?
-      LIMIT 1
-    `,
-  )
-    .bind(sourceText, sourceLang ?? "", targetLang)
-    .first<TermRow>();
-
-  if (!saved) throw new HttpError(500, "Term was not saved");
-  return json(termResponse(saved), 201);
-}
-
-async function updateTerm(id: number, request: Request, env: Env): Promise<Response> {
-  const existing = await env.DB.prepare(`SELECT * FROM terms WHERE id = ? LIMIT 1`)
-    .bind(id)
-    .first<TermRow>();
-  if (!existing) throw new HttpError(404, "Term not found");
-
-  const body = await readJson<TermRequest>(request);
-  const sourceText = optionalString(body.sourceText) ?? existing.source_text;
-  const targetText = optionalString(body.targetText) ?? existing.target_text;
-  const sourceLang = body.sourceLang === null ? null : optionalString(body.sourceLang) ?? existing.source_lang;
-  const sourceLangKey = sourceLang ?? "";
-  const targetLang = optionalString(body.targetLang) ?? existing.target_lang;
-  const note = body.note === null ? null : optionalString(body.note) ?? existing.note;
-
-  await env.DB.prepare(
-    `
-      UPDATE terms
-      SET source_text = ?,
-          target_text = ?,
-          source_lang = ?,
-          source_lang_key = ?,
-          target_lang = ?,
-          note = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `,
-  )
-    .bind(sourceText, targetText, sourceLang, sourceLangKey, targetLang, note, id)
-    .run();
-
-  const saved = await env.DB.prepare(`SELECT * FROM terms WHERE id = ? LIMIT 1`)
-    .bind(id)
-    .first<TermRow>();
-
-  if (!saved) throw new HttpError(500, "Term was not updated");
-  return json(termResponse(saved));
-}
-
-async function deleteTerm(id: number, env: Env): Promise<Response> {
-  const existing = await env.DB.prepare(`SELECT id FROM terms WHERE id = ? LIMIT 1`)
-    .bind(id)
-    .first<{ id: number }>();
-  if (!existing) throw new HttpError(404, "Term not found");
-
-  await env.DB.prepare(`DELETE FROM terms WHERE id = ?`).bind(id).run();
-  return json({ ok: true });
-}
-
-async function findRelevantTerms(
-  env: Env,
-  text: string,
-  sourceLang: string | undefined,
-  targetLang: string,
-): Promise<TermRow[]> {
-  const result = await env.DB.prepare(
-    `
-      SELECT * FROM terms
-      WHERE target_lang = ?
-        AND (source_lang IS NULL OR source_lang = ?)
-      ORDER BY updated_at DESC
-      LIMIT 100
-    `,
-  )
-    .bind(targetLang, sourceLang ?? "")
-    .all<TermRow>();
-
-  return result.results.filter((term) => text.includes(term.source_text)).slice(0, 20);
-}
-
-function buildSystemPrompt(targetLang: string, sourceLang: string | undefined, terms: TermRow[]): string {
-  const glossary =
-    terms.length === 0
-      ? ""
-      : [
-          "",
-          "Glossary terms:",
-          ...terms.map((term) => `  ${term.source_text} => ${term.target_text}`),
-        ].join("\n");
-
+function buildSystemPrompt(): string {
   return [
     "You are an English-Chinese bidirectional translator.",
     "If the input is mainly English, translate it into natural Simplified Chinese.",
@@ -478,7 +206,6 @@ function buildSystemPrompt(targetLang: string, sourceLang: string | undefined, t
     "Start vocabulary entries directly with the part of speech and meaning, followed by indented Forms line for verbs, indented Example line, and indented Translation line.",
     "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
     "Do not add unrelated explanations.",
-    glossary,
   ]
     .filter(Boolean)
     .join("\n");
@@ -489,29 +216,16 @@ function translationResponse(row: TranslationRow) {
     id: row.id,
     text: row.source_text,
     translatedText: row.translated_text,
-    sourceLang: row.source_lang,
-    targetLang: row.target_lang,
-    model: row.model,
-    provider: row.provider,
-    usage: {
-      promptTokens: row.prompt_tokens,
-      completionTokens: row.completion_tokens,
-      totalTokens: row.total_tokens,
-    },
     createdAt: row.created_at,
   };
 }
 
-function termResponse(row: TermRow) {
+function translationPayload(value: ReturnType<typeof translationResponse>) {
   return {
-    id: row.id,
-    sourceText: row.source_text,
-    targetText: row.target_text,
-    sourceLang: row.source_lang,
-    targetLang: row.target_lang,
-    note: row.note,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id: value.id,
+    text: value.text,
+    translatedText: value.translatedText,
+    createdAt: value.createdAt,
   };
 }
 
@@ -544,12 +258,6 @@ function requiredString(value: unknown, field: string): string {
     throw new HttpError(400, `${field} is required`);
   }
   return value.trim();
-}
-
-function optionalString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function clampNumber(input: string | null, min: number, max: number, fallback: number): number {
