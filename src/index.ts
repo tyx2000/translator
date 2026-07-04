@@ -410,6 +410,14 @@ function simpleAppHtml(): string {
       border-bottom: 1px solid #e5e7eb;
     }
 
+    .brand {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+    }
+
     h1 {
       margin: 0;
       font-size: 22px;
@@ -419,7 +427,6 @@ function simpleAppHtml(): string {
     }
 
     .meta {
-      margin-top: 6px;
       color: #6b7280;
       font-size: 13px;
       line-height: 1.4;
@@ -627,28 +634,80 @@ function simpleAppHtml(): string {
     }
 
     @media (max-width: 760px) {
-      .shell {
-        width: min(100% - 20px, 1080px);
-        padding: 18px 0;
+      body {
+        min-height: 100dvh;
       }
 
-      .top,
+      .shell {
+        display: flex;
+        min-height: 100dvh;
+        width: min(100% - 20px, 1080px);
+        flex-direction: column;
+        padding: 12px 0;
+      }
+
+      .top {
+        align-items: center;
+        gap: 8px;
+        padding-bottom: 10px;
+      }
+
+      .brand {
+        gap: 6px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .meta,
+      .status {
+        font-size: 12px;
+      }
+
       .actions {
         align-items: stretch;
         flex-direction: column;
       }
 
       .workspace {
-        grid-template-rows: minmax(240px, 38vh) minmax(280px, auto);
+        flex: 1;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .pane-head {
+        min-height: 38px;
+      }
+
+      textarea,
+      .output {
+        padding: 12px;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      .actions {
+        gap: 0;
+        padding-top: 10px;
+      }
+
+      .hint {
+        display: none;
       }
 
       .buttons {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
         width: 100%;
       }
 
       .buttons button {
-        flex: 1;
         min-width: 0;
+        width: 100%;
+        padding: 0 6px;
+        font-size: 13px;
       }
 
       .modal {
@@ -682,7 +741,7 @@ function simpleAppHtml(): string {
 <body>
   <main class="shell">
     <header class="top">
-      <div>
+      <div class="brand">
         <h1>Vocabulary</h1>
         <div class="meta">English / Chinese · deepseek-v4-flash</div>
       </div>
