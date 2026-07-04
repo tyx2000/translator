@@ -518,9 +518,12 @@ function simpleAppHtml(): string {
 
     .history-dialog {
       display: grid;
-      grid-template-rows: auto 1fr auto;
-      width: 80vw;
-      height: 80vh;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      width: 100%;
+      max-width: 760px;
+      height: min(80vh, 720px);
+      max-height: 100%;
+      min-width: 0;
       border: 1px solid #111827;
       background: #ffffff;
     }
@@ -532,7 +535,7 @@ function simpleAppHtml(): string {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 0 32px;
+      padding: 0 20px;
       border-bottom: 1px solid #e5e7eb;
     }
 
@@ -550,42 +553,55 @@ function simpleAppHtml(): string {
       font-weight: 600;
     }
 
-    .table-wrap {
+    .history-scroll {
       overflow: auto;
-      padding: 32px;
+      min-width: 0;
+      padding: 8px 20px 20px;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      font-size: 13px;
+    .history-list {
+      display: grid;
+      gap: 0;
     }
 
-    td {
-      padding: 12px 0;
+    .history-item {
+      display: grid;
+      gap: 8px;
+      padding: 14px 0;
       border-bottom: 1px solid #e5e7eb;
-      vertical-align: top;
-      text-align: left;
-    }
-
-    td {
       color: #111827;
       line-height: 1.45;
       overflow-wrap: anywhere;
     }
 
-    .action-cell {
-      width: 92px;
-      text-align: right;
+    .history-empty {
+      padding: 18px 0;
+      color: #6b7280;
+      font-size: 13px;
     }
 
     .history-source,
     .history-result {
       white-space: pre-wrap;
+      font-size: 13px;
+    }
+
+    .history-source {
+      font-weight: 600;
+    }
+
+    .history-result {
+      color: #374151;
+    }
+
+    .history-actions {
+      display: flex;
+      justify-content: flex-end;
     }
 
     .delete-history {
+      width: auto;
+      height: auto;
       border: 0;
       background: transparent;
       color: #9f1239;
@@ -626,31 +642,39 @@ function simpleAppHtml(): string {
         grid-template-rows: minmax(240px, 38vh) minmax(280px, auto);
       }
 
-      .buttons,
-      button {
+      .buttons {
         width: 100%;
       }
 
-      .history-dialog {
-        width: 92vw;
-        height: 74vh;
+      .buttons button {
+        flex: 1;
         min-width: 0;
-        min-height: 0;
       }
 
-      .dialog-head,
-      .dialog-foot {
-        align-items: stretch;
-        flex-direction: column;
-        padding: 10px 12px;
-      }
-
-      .table-wrap {
+      .modal {
         padding: 12px;
       }
 
-      .pager {
+      .history-dialog {
         width: 100%;
+        height: min(78vh, 680px);
+        min-height: 0;
+      }
+
+      .dialog-head {
+        padding: 0 14px;
+      }
+
+      .dialog-foot {
+        padding: 10px 14px;
+      }
+
+      .history-scroll {
+        padding: 6px 14px 14px;
+      }
+
+      .pager {
+        justify-content: flex-end;
       }
     }
   </style>
@@ -699,14 +723,10 @@ function simpleAppHtml(): string {
         <div class="dialog-title" id="historyTitle">History</div>
         <button type="button" id="closeHistoryButton">Close</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <tbody id="historyBody">
-            <tr>
-              <td colspan="3">No records</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="history-scroll">
+        <div class="history-list" id="historyBody">
+          <div class="history-empty">No records</div>
+        </div>
       </div>
       <div class="dialog-foot" id="historyPager" hidden>
         <div class="pager-state" id="historyPageState">Page 1</div>
@@ -755,24 +775,23 @@ function simpleAppHtml(): string {
     function fillHistory(items) {
       historyBody.innerHTML = "";
       if (!items.length) {
-        const row = document.createElement("tr");
-        const cell = document.createElement("td");
-        cell.colSpan = 3;
-        cell.textContent = "No records";
-        row.appendChild(cell);
-        historyBody.appendChild(row);
+        const empty = document.createElement("div");
+        empty.className = "history-empty";
+        empty.textContent = "No records";
+        historyBody.appendChild(empty);
         return;
       }
 
       for (const item of items) {
-        const row = document.createElement("tr");
-        const source = document.createElement("td");
-        const result = document.createElement("td");
-        const action = document.createElement("td");
+        const row = document.createElement("article");
+        const source = document.createElement("div");
+        const result = document.createElement("div");
+        const action = document.createElement("div");
         const deleteButton = document.createElement("button");
+        row.className = "history-item";
         source.className = "history-source";
         result.className = "history-result";
-        action.className = "action-cell";
+        action.className = "history-actions";
         deleteButton.className = "delete-history";
         deleteButton.type = "button";
         deleteButton.textContent = "Delete";
