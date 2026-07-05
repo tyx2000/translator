@@ -463,6 +463,33 @@ function simpleAppHtml(): string {
       font-size: 13px;
     }
 
+    .pane-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .pane-actions .primary {
+      height: 30px;
+      padding: 0 12px;
+    }
+
+    .text-button {
+      width: auto;
+      height: auto;
+      border: 0;
+      background: transparent;
+      color: #4b5563;
+      padding: 0;
+    }
+
+    .text-button:hover {
+      background: transparent;
+      color: #111827;
+      text-decoration: underline;
+    }
+
     textarea,
     .output {
       flex: 1;
@@ -680,6 +707,15 @@ function simpleAppHtml(): string {
         min-height: 38px;
       }
 
+      .pane-actions {
+        gap: 8px;
+      }
+
+      .pane-actions .primary {
+        height: 28px;
+        padding: 0 10px;
+      }
+
       textarea,
       .output {
         padding: 12px;
@@ -698,7 +734,7 @@ function simpleAppHtml(): string {
 
       .buttons {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
         width: 100%;
       }
@@ -752,7 +788,10 @@ function simpleAppHtml(): string {
       <form id="translateForm">
         <div class="pane-head">
           <span>Input</span>
-          <span>Auto direction</span>
+          <div class="pane-actions">
+            <button class="text-button" type="button" id="clearButton">Clear</button>
+            <button class="primary" id="translateButton" type="submit">Translate</button>
+          </div>
         </div>
         <textarea id="text" name="text" placeholder="输入中文或英文"></textarea>
       </form>
@@ -769,9 +808,8 @@ function simpleAppHtml(): string {
     <div class="actions">
       <div class="hint">单个单词会返回 n. / v. / adj. 等词性解释和例句；句子和段落会直接英中互译。</div>
       <div class="buttons">
-        <button type="button" id="historyButton">History</button>
         <button type="button" id="copyButton">Copy</button>
-        <button class="primary" form="translateForm" id="translateButton" type="submit">Translate</button>
+        <button type="button" id="historyButton">History</button>
       </div>
     </div>
   </main>
@@ -803,6 +841,7 @@ function simpleAppHtml(): string {
     const status = document.querySelector("#status");
     const resultMeta = document.querySelector("#resultMeta");
     const translateButton = document.querySelector("#translateButton");
+    const clearButton = document.querySelector("#clearButton");
     const copyButton = document.querySelector("#copyButton");
     const historyButton = document.querySelector("#historyButton");
     const historyModal = document.querySelector("#historyModal");
@@ -939,6 +978,12 @@ function simpleAppHtml(): string {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
       event.preventDefault();
       document.querySelector("#translateForm").requestSubmit();
+    });
+
+    clearButton.addEventListener("click", () => {
+      text.value = "";
+      text.focus();
+      setStatus("Ready");
     });
 
     copyButton.addEventListener("click", async () => {
