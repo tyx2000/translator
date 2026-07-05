@@ -1,0 +1,14 @@
+apply plugin: 'com.android.application'
+
+android {
+  namespace 'com.uasic.vocabulary'
+  compileSdk 35
+
+  defaultConfig {
+    applicationId 'com.uasic.vocabulary'
+    minSdk 23
+    targetSdk 35
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
