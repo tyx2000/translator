@@ -3,9 +3,13 @@ package com.uasic.vocabulary;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.view.WindowInsets;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -21,10 +25,32 @@ public class MainActivity extends Activity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      getWindow().setDecorFitsSystemWindows(false);
+    }
+
+    FrameLayout root = new FrameLayout(this);
+    root.setBackgroundColor(Color.WHITE);
+    root.setLayoutParams(
+      new ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.MATCH_PARENT
+      )
+    );
+    root.setOnApplyWindowInsetsListener(
+      (view, insets) -> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          Insets systemBars = insets.getInsets(WindowInsets.Type.systemBars());
+          view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+        }
+        return insets;
+      }
+    );
+
     webView = new WebView(this);
     webView.setBackgroundColor(Color.WHITE);
     webView.setLayoutParams(
-      new ViewGroup.LayoutParams(
+      new FrameLayout.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT
       )
@@ -53,7 +79,9 @@ public class MainActivity extends Activity {
       }
     );
 
-    setContentView(webView);
+    root.addView(webView);
+    setContentView(root);
+    root.requestApplyInsets();
 
     if (savedInstanceState == null) {
       webView.loadUrl(APP_URL);
