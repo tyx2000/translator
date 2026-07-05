@@ -461,7 +461,7 @@ function simpleAppHtml(): string {
 
     .workspace {
       display: grid;
-      grid-template-rows: minmax(250px, 36vh) minmax(300px, auto);
+      grid-template-rows: auto minmax(300px, 1fr);
       border-bottom: 1px solid #e5e7eb;
     }
 
@@ -512,9 +512,7 @@ function simpleAppHtml(): string {
 
     textarea,
     .output {
-      flex: 1;
       width: 100%;
-      min-height: 0;
       border: 0;
       border-radius: 0;
       margin: 0;
@@ -528,6 +526,18 @@ function simpleAppHtml(): string {
       white-space: pre-wrap;
       overflow: auto;
       text-wrap: pretty;
+    }
+
+    textarea {
+      flex: 0 0 auto;
+      min-height: 200px;
+      height: 200px;
+      overflow: hidden;
+    }
+
+    .output {
+      flex: 1;
+      min-height: 0;
     }
 
     .workspace > :first-child {
@@ -720,7 +730,7 @@ function simpleAppHtml(): string {
       .workspace {
         flex: 1;
         min-height: 0;
-        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
       }
 
       .pane-head {
@@ -879,6 +889,11 @@ function simpleAppHtml(): string {
       status.textContent = value;
     }
 
+    function resizeInput() {
+      text.style.height = "auto";
+      text.style.height = Math.max(200, text.scrollHeight) + "px";
+    }
+
     async function translate(value) {
       const response = await fetch("/api/translate", {
         method: "POST",
@@ -974,6 +989,7 @@ function simpleAppHtml(): string {
     document.querySelector("#translateForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const value = text.value.trim();
+      text.blur();
       if (!value) {
         setStatus("Text required");
         return;
@@ -997,11 +1013,16 @@ function simpleAppHtml(): string {
     text.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
       event.preventDefault();
+      text.blur();
       document.querySelector("#translateForm").requestSubmit();
     });
 
+    text.addEventListener("input", resizeInput);
+    resizeInput();
+
     clearButton.addEventListener("click", () => {
       text.value = "";
+      resizeInput();
       text.focus();
       setStatus("Ready");
     });
