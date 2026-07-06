@@ -57,6 +57,10 @@ export default {
         return await listTranslations(url, env);
       }
 
+      if (request.method === "GET" && url.pathname === "/api/translations/export") {
+        return await exportTranslations(env);
+      }
+
       const translationId = matchId(url.pathname, "/api/translations/");
       if (translationId && request.method === "DELETE") {
         return await deleteTranslation(translationId, env);
@@ -190,6 +194,39 @@ async function listTranslations(url: URL, env: Env): Promise<Response> {
   return json({ items: result.results.map(translationResponse), limit, offset });
 }
 
+async function exportTranslations(env: Env): Promise<Response> {
+  const pageSize = 1000;
+  const rows: TranslationRow[] = [];
+  let offset = 0;
+
+  while (true) {
+    const result = await env.DB.prepare(
+      `
+        SELECT * FROM translations
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `,
+    )
+      .bind(pageSize, offset)
+      .all<TranslationRow>();
+
+    rows.push(...result.results);
+    if (result.results.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  const markdown = buildHistoryMarkdown(rows.map(translationResponse));
+
+  return new Response(markdown, {
+    status: 200,
+    headers: {
+      "content-type": "text/markdown; charset=utf-8",
+      "content-disposition": 'attachment; filename="translation-history.md"',
+      "cache-control": "no-store",
+    },
+  });
+}
+
 async function deleteTranslation(id: number, env: Env): Promise<Response> {
   const row = await env.DB.prepare(`SELECT cache_key FROM translations WHERE id = ? LIMIT 1`)
     .bind(id)
@@ -229,6 +266,39 @@ function translationResponse(row: TranslationRow) {
     translatedText: row.translated_text,
     createdAt: row.created_at,
   };
+}
+
+function markdownFence(value: string): string {
+  const fence = String.fromCharCode(96, 96, 96);
+  const escapedFence = String.fromCharCode(96) + "\u200b" + String.fromCharCode(96, 96);
+  return `${fence}text\n${value.split(fence).join(escapedFence)}\n${fence}`;
+}
+
+function buildHistoryMarkdown(items: Array<ReturnType<typeof translationResponse>>): string {
+  const lines = [
+    "# Translation History",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    `Total records: ${items.length}`,
+    "",
+  ];
+
+  items.forEach((item, index) => {
+    lines.push(
+      `## ${index + 1}`,
+      "",
+      "Input",
+      "",
+      markdownFence(item.text),
+      "",
+      "Output",
+      "",
+      markdownFence(item.translatedText),
+      "",
+    );
+  });
+
+  return lines.join("\n");
 }
 
 function translationPayload(value: ReturnType<typeof translationResponse>) {
@@ -966,7 +1036,6 @@ function simpleAppHtml(): string {
     const historyPager = document.querySelector("#historyPager");
     const historyPageState = document.querySelector("#historyPageState");
     const historyPageSize = 15;
-    const historyExportPageSize = 100;
     let historyPage = 0;
     let historyHasNext = false;
 
@@ -983,79 +1052,14 @@ function simpleAppHtml(): string {
       text.style.height = Math.max(200, text.scrollHeight) + "px";
     }
 
-    function markdownFence(value) {
-      const fence = String.fromCharCode(96, 96, 96);
-      const escapedFence = String.fromCharCode(96) + "\\u200b" + String.fromCharCode(96, 96);
-      return fence + "text\\n" + value.split(fence).join(escapedFence) + "\\n" + fence;
-    }
-
-    function buildHistoryMarkdown(items) {
-      const lines = [
-        "# Translation History",
-        "",
-        "Generated: " + new Date().toLocaleString(),
-        "Total records: " + items.length,
-        ""
-      ];
-
-      items.forEach((item, index) => {
-        lines.push("## " + (index + 1), "", "Input", "", markdownFence(item.text), "", "Output", "", markdownFence(item.translatedText), "");
-      });
-
-      return lines.join("\\n");
-    }
-
-    async function loadAllHistoryForExport() {
-      const items = [];
-      let offset = 0;
-
-      while (true) {
-        const response = await fetch("/api/translations?limit=" + historyExportPageSize + "&offset=" + offset);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "History request failed");
-        items.push(...data.items);
-        if (data.items.length < historyExportPageSize) break;
-        offset += historyExportPageSize;
-      }
-
-      return items;
-    }
-
-    async function exportHistory() {
-      exportHistoryButton.disabled = true;
+    function exportHistory() {
+      const link = document.createElement("a");
+      link.href = "/api/translations/export";
+      link.download = "translation-history.md";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
       setStatus("Exporting");
-
-      try {
-        const items = await loadAllHistoryForExport();
-
-        if (!items.length) {
-          setStatus("No records");
-          return;
-        }
-
-        const markdown = buildHistoryMarkdown(items);
-        const filename = "translation-history.md";
-        const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-        const file = typeof File === "function" ? new File([blob], filename, { type: blob.type }) : null;
-
-        if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-          await navigator.share({ files: [file], title: "Translation History" });
-          setStatus("Exported");
-          return;
-        }
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-        setStatus("Exported");
-      } finally {
-        exportHistoryButton.disabled = false;
-      }
     }
 
     async function translate(value) {
@@ -1208,13 +1212,7 @@ function simpleAppHtml(): string {
 
     closeHistoryButton.addEventListener("click", closeHistory);
 
-    exportHistoryButton.addEventListener("click", async () => {
-      try {
-        await exportHistory();
-      } catch (error) {
-        setStatus(error.message || "Export failed");
-      }
-    });
+    exportHistoryButton.addEventListener("click", exportHistory);
 
     historyModal.addEventListener("click", (event) => {
       if (event.target === historyModal) closeHistory();
