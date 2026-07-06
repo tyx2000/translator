@@ -57,10 +57,6 @@ export default {
         return await listTranslations(url, env);
       }
 
-      if (request.method === "GET" && url.pathname === "/api/translations/export") {
-        return await exportTranslations(env);
-      }
-
       const translationId = matchId(url.pathname, "/api/translations/");
       if (translationId && request.method === "DELETE") {
         return await deleteTranslation(translationId, env);
@@ -194,39 +190,6 @@ async function listTranslations(url: URL, env: Env): Promise<Response> {
   return json({ items: result.results.map(translationResponse), limit, offset });
 }
 
-async function exportTranslations(env: Env): Promise<Response> {
-  const pageSize = 1000;
-  const rows: TranslationRow[] = [];
-  let offset = 0;
-
-  while (true) {
-    const result = await env.DB.prepare(
-      `
-        SELECT * FROM translations
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-      `,
-    )
-      .bind(pageSize, offset)
-      .all<TranslationRow>();
-
-    rows.push(...result.results);
-    if (result.results.length < pageSize) break;
-    offset += pageSize;
-  }
-
-  const content = buildHistoryText(rows.map(translationResponse));
-
-  return new Response(content, {
-    status: 200,
-    headers: {
-      "content-type": "text/plain; charset=utf-8",
-      "content-disposition": 'attachment; filename="translation-history.txt"',
-      "cache-control": "no-store",
-    },
-  });
-}
-
 async function deleteTranslation(id: number, env: Env): Promise<Response> {
   const row = await env.DB.prepare(`SELECT cache_key FROM translations WHERE id = ? LIMIT 1`)
     .bind(id)
@@ -266,31 +229,6 @@ function translationResponse(row: TranslationRow) {
     translatedText: row.translated_text,
     createdAt: row.created_at,
   };
-}
-
-function buildHistoryText(items: Array<ReturnType<typeof translationResponse>>): string {
-  const lines = [
-    "Translation History",
-    "",
-    `Generated: ${new Date().toISOString()}`,
-    `Total records: ${items.length}`,
-    "",
-  ];
-
-  items.forEach((item, index) => {
-    lines.push(
-      `${index + 1}.`,
-      "",
-      "Input:",
-      item.text,
-      "",
-      "Output:",
-      item.translatedText,
-      "",
-    );
-  });
-
-  return lines.join("\n");
 }
 
 function translationPayload(value: ReturnType<typeof translationResponse>) {
@@ -733,13 +671,6 @@ function simpleAppHtml(): string {
       font-weight: 600;
     }
 
-    .dialog-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
     .history-scroll {
       overflow: auto;
       min-width: 0;
@@ -918,10 +849,6 @@ function simpleAppHtml(): string {
         padding: 0 14px;
       }
 
-      .dialog-actions {
-        gap: 6px;
-      }
-
       .dialog-foot {
         padding: 10px 14px;
       }
@@ -988,10 +915,7 @@ function simpleAppHtml(): string {
     <section class="history-dialog">
       <div class="dialog-head">
         <div class="dialog-title" id="historyTitle">History</div>
-        <div class="dialog-actions">
-          <button type="button" id="closeHistoryButton">Close</button>
-          <button type="button" id="exportHistoryButton">Export</button>
-        </div>
+        <button type="button" id="closeHistoryButton">Close</button>
       </div>
       <div class="history-scroll" id="historyScroll">
         <div class="history-list" id="historyBody">
@@ -1020,7 +944,6 @@ function simpleAppHtml(): string {
     const historyButton = document.querySelector("#historyButton");
     const historyModal = document.querySelector("#historyModal");
     const closeHistoryButton = document.querySelector("#closeHistoryButton");
-    const exportHistoryButton = document.querySelector("#exportHistoryButton");
     const prevHistoryButton = document.querySelector("#prevHistoryButton");
     const nextHistoryButton = document.querySelector("#nextHistoryButton");
     const historyScroll = document.querySelector("#historyScroll");
@@ -1042,11 +965,6 @@ function simpleAppHtml(): string {
     function resizeInput() {
       text.style.height = "auto";
       text.style.height = Math.max(200, text.scrollHeight) + "px";
-    }
-
-    function exportHistory() {
-      setStatus("Exporting");
-      window.location.assign("/api/translations/export");
     }
 
     async function translate(value) {
@@ -1198,8 +1116,6 @@ function simpleAppHtml(): string {
     });
 
     closeHistoryButton.addEventListener("click", closeHistory);
-
-    exportHistoryButton.addEventListener("click", exportHistory);
 
     historyModal.addEventListener("click", (event) => {
       if (event.target === historyModal) closeHistory();
