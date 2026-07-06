@@ -215,13 +215,13 @@ async function exportTranslations(env: Env): Promise<Response> {
     offset += pageSize;
   }
 
-  const markdown = buildHistoryMarkdown(rows.map(translationResponse));
+  const content = buildHistoryText(rows.map(translationResponse));
 
-  return new Response(markdown, {
+  return new Response(content, {
     status: 200,
     headers: {
-      "content-type": "text/markdown; charset=utf-8",
-      "content-disposition": 'attachment; filename="translation-history.md"',
+      "content-type": "text/plain; charset=utf-8",
+      "content-disposition": 'attachment; filename="translation-history.txt"',
       "cache-control": "no-store",
     },
   });
@@ -268,15 +268,9 @@ function translationResponse(row: TranslationRow) {
   };
 }
 
-function markdownFence(value: string): string {
-  const fence = String.fromCharCode(96, 96, 96);
-  const escapedFence = String.fromCharCode(96) + "\u200b" + String.fromCharCode(96, 96);
-  return `${fence}text\n${value.split(fence).join(escapedFence)}\n${fence}`;
-}
-
-function buildHistoryMarkdown(items: Array<ReturnType<typeof translationResponse>>): string {
+function buildHistoryText(items: Array<ReturnType<typeof translationResponse>>): string {
   const lines = [
-    "# Translation History",
+    "Translation History",
     "",
     `Generated: ${new Date().toISOString()}`,
     `Total records: ${items.length}`,
@@ -285,15 +279,13 @@ function buildHistoryMarkdown(items: Array<ReturnType<typeof translationResponse
 
   items.forEach((item, index) => {
     lines.push(
-      `## ${index + 1}`,
+      `${index + 1}.`,
       "",
-      "Input",
+      "Input:",
+      item.text,
       "",
-      markdownFence(item.text),
-      "",
-      "Output",
-      "",
-      markdownFence(item.translatedText),
+      "Output:",
+      item.translatedText,
       "",
     );
   });
@@ -1053,13 +1045,8 @@ function simpleAppHtml(): string {
     }
 
     function exportHistory() {
-      const link = document.createElement("a");
-      link.href = "/api/translations/export";
-      link.download = "translation-history.md";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
       setStatus("Exporting");
+      window.location.assign("/api/translations/export");
     }
 
     async function translate(value) {
