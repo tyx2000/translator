@@ -540,6 +540,60 @@ function simpleAppHtml(): string {
       min-height: 0;
     }
 
+    .output-wrap {
+      position: relative;
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .translation-loader {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.72);
+      pointer-events: none;
+    }
+
+    .translation-loader[hidden] {
+      display: none;
+    }
+
+    .hexagram-loader {
+      width: 72px;
+      height: 72px;
+      color: #111827;
+    }
+
+    .hexagram-path {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 4;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: trace-hexagram 1.6s ease-in-out infinite;
+    }
+
+    .hexagram-path:nth-child(2) {
+      animation-delay: 180ms;
+    }
+
+    @keyframes trace-hexagram {
+      0% {
+        opacity: 0.25;
+        stroke-dashoffset: 1;
+      }
+
+      70%,
+      100% {
+        opacity: 1;
+        stroke-dashoffset: 0;
+      }
+    }
+
     .workspace > :first-child {
       border-bottom: 1px solid #e5e7eb;
     }
@@ -746,6 +800,11 @@ function simpleAppHtml(): string {
         padding: 0 10px;
       }
 
+      .hexagram-loader {
+        width: 60px;
+        height: 60px;
+      }
+
       textarea,
       .output {
         padding: 12px;
@@ -831,7 +890,15 @@ function simpleAppHtml(): string {
           <span>Result</span>
           <span id="resultMeta">No result</span>
         </div>
-        <pre class="output" id="output"></pre>
+        <div class="output-wrap">
+          <pre class="output" id="output"></pre>
+          <div class="translation-loader" id="translationLoader" aria-label="Translating" hidden>
+            <svg class="hexagram-loader" viewBox="0 0 100 100" aria-hidden="true">
+              <polygon class="hexagram-path" pathLength="1" points="50 12 84 72 16 72 50 12"></polygon>
+              <polygon class="hexagram-path" pathLength="1" points="50 88 16 28 84 28 50 88"></polygon>
+            </svg>
+          </div>
+        </div>
       </section>
     </section>
 
@@ -870,6 +937,7 @@ function simpleAppHtml(): string {
     const output = document.querySelector("#output");
     const status = document.querySelector("#status");
     const resultMeta = document.querySelector("#resultMeta");
+    const translationLoader = document.querySelector("#translationLoader");
     const translateButton = document.querySelector("#translateButton");
     const clearButton = document.querySelector("#clearButton");
     const copyButton = document.querySelector("#copyButton");
@@ -887,6 +955,10 @@ function simpleAppHtml(): string {
 
     function setStatus(value) {
       status.textContent = value;
+    }
+
+    function setLoading(isLoading) {
+      translationLoader.hidden = !isLoading;
     }
 
     function resizeInput() {
@@ -996,6 +1068,7 @@ function simpleAppHtml(): string {
       }
 
       translateButton.disabled = true;
+      setLoading(true);
       setStatus("Translating");
 
       try {
@@ -1006,6 +1079,7 @@ function simpleAppHtml(): string {
       } catch (error) {
         setStatus(error.message);
       } finally {
+        setLoading(false);
         translateButton.disabled = false;
       }
     });
