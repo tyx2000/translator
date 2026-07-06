@@ -671,6 +671,13 @@ function simpleAppHtml(): string {
       font-weight: 600;
     }
 
+    .dialog-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
     .history-scroll {
       overflow: auto;
       min-width: 0;
@@ -849,6 +856,10 @@ function simpleAppHtml(): string {
         padding: 0 14px;
       }
 
+      .dialog-actions {
+        gap: 6px;
+      }
+
       .dialog-foot {
         padding: 10px 14px;
       }
@@ -915,9 +926,12 @@ function simpleAppHtml(): string {
     <section class="history-dialog">
       <div class="dialog-head">
         <div class="dialog-title" id="historyTitle">History</div>
-        <button type="button" id="closeHistoryButton">Close</button>
+        <div class="dialog-actions">
+          <button type="button" id="closeHistoryButton">Close</button>
+          <button type="button" id="exportHistoryButton">Export</button>
+        </div>
       </div>
-      <div class="history-scroll">
+      <div class="history-scroll" id="historyScroll">
         <div class="history-list" id="historyBody">
           <div class="history-empty">No records</div>
         </div>
@@ -944,12 +958,15 @@ function simpleAppHtml(): string {
     const historyButton = document.querySelector("#historyButton");
     const historyModal = document.querySelector("#historyModal");
     const closeHistoryButton = document.querySelector("#closeHistoryButton");
+    const exportHistoryButton = document.querySelector("#exportHistoryButton");
     const prevHistoryButton = document.querySelector("#prevHistoryButton");
     const nextHistoryButton = document.querySelector("#nextHistoryButton");
+    const historyScroll = document.querySelector("#historyScroll");
     const historyBody = document.querySelector("#historyBody");
     const historyPager = document.querySelector("#historyPager");
     const historyPageState = document.querySelector("#historyPageState");
     const historyPageSize = 15;
+    const historyExportPageSize = 100;
     let historyPage = 0;
     let historyHasNext = false;
 
@@ -964,6 +981,81 @@ function simpleAppHtml(): string {
     function resizeInput() {
       text.style.height = "auto";
       text.style.height = Math.max(200, text.scrollHeight) + "px";
+    }
+
+    function markdownFence(value) {
+      const fence = String.fromCharCode(96, 96, 96);
+      const escapedFence = String.fromCharCode(96) + "\\u200b" + String.fromCharCode(96, 96);
+      return fence + "text\\n" + value.split(fence).join(escapedFence) + "\\n" + fence;
+    }
+
+    function buildHistoryMarkdown(items) {
+      const lines = [
+        "# Translation History",
+        "",
+        "Generated: " + new Date().toLocaleString(),
+        "Total records: " + items.length,
+        ""
+      ];
+
+      items.forEach((item, index) => {
+        lines.push("## " + (index + 1), "", "Input", "", markdownFence(item.text), "", "Output", "", markdownFence(item.translatedText), "");
+      });
+
+      return lines.join("\\n");
+    }
+
+    async function loadAllHistoryForExport() {
+      const items = [];
+      let offset = 0;
+
+      while (true) {
+        const response = await fetch("/api/translations?limit=" + historyExportPageSize + "&offset=" + offset);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "History request failed");
+        items.push(...data.items);
+        if (data.items.length < historyExportPageSize) break;
+        offset += historyExportPageSize;
+      }
+
+      return items;
+    }
+
+    async function exportHistory() {
+      exportHistoryButton.disabled = true;
+      setStatus("Exporting");
+
+      try {
+        const items = await loadAllHistoryForExport();
+
+        if (!items.length) {
+          setStatus("No records");
+          return;
+        }
+
+        const markdown = buildHistoryMarkdown(items);
+        const filename = "translation-history.md";
+        const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+        const file = typeof File === "function" ? new File([blob], filename, { type: blob.type }) : null;
+
+        if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+          await navigator.share({ files: [file], title: "Translation History" });
+          setStatus("Exported");
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setStatus("Exported");
+      } finally {
+        exportHistoryButton.disabled = false;
+      }
     }
 
     async function translate(value) {
@@ -1020,6 +1112,7 @@ function simpleAppHtml(): string {
       historyHasNext = data.items.length > historyPageSize;
       const visibleItems = data.items.slice(0, historyPageSize);
       fillHistory(visibleItems);
+      historyScroll.scrollTop = 0;
       historyPageState.textContent = "Page " + (page + 1);
       prevHistoryButton.disabled = page === 0;
       nextHistoryButton.disabled = !historyHasNext;
@@ -1114,6 +1207,14 @@ function simpleAppHtml(): string {
     });
 
     closeHistoryButton.addEventListener("click", closeHistory);
+
+    exportHistoryButton.addEventListener("click", async () => {
+      try {
+        await exportHistory();
+      } catch (error) {
+        setStatus(error.message || "Export failed");
+      }
+    });
 
     historyModal.addEventListener("click", (event) => {
       if (event.target === historyModal) closeHistory();
