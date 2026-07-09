@@ -28,7 +28,7 @@ const ICON_HEADERS = {
 };
 
 const FIXED_MODEL = "deepseek-v4-flash";
-const PROMPT_VERSION = "plain-dictionary-v2";
+const PROMPT_VERSION = "plain-dictionary-v3";
 const FAVICON_PNG_BASE64 =
   "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";
 
@@ -94,7 +94,7 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     return json({ ...payload, cached: true });
   }
 
-  const translatedText = await requestDeepSeekTranslation(env, text);
+  const deepseek = await requestDeepSeekTranslation(env, text);
 
   await env.DB.prepare(
     `
@@ -109,8 +109,8 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     `,
   )
     .bind(
-      text,
-      translatedText,
+      deepseek.correctedText,
+      deepseek.translatedText,
       cacheKey,
     )
     .run();
@@ -128,7 +128,10 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
   return json({ ...payload, cached: false }, 201);
 }
 
-async function requestDeepSeekTranslation(env: Env, text: string): Promise<string> {
+async function requestDeepSeekTranslation(
+  env: Env,
+  text: string,
+): Promise<{ correctedText: string; translatedText: string }> {
   if (!env.DEEPSEEK_API_KEY) {
     throw new HttpError(500, "DEEPSEEK_API_KEY secret is not configured");
   }
@@ -150,7 +153,7 @@ async function requestDeepSeekTranslation(env: Env, text: string): Promise<strin
         },
         {
           role: "user",
-          content: text,
+          content: JSON.stringify({ text }),
         },
       ],
     }),
@@ -165,12 +168,14 @@ async function requestDeepSeekTranslation(env: Env, text: string): Promise<strin
     throw new HttpError(response.status, result.error?.message ?? "DeepSeek request failed");
   }
 
-  const translatedText = normalizePlainTextOutput(result.choices?.[0]?.message?.content?.trim() ?? "", text);
+  const parsed = parseDeepSeekTranslation(result.choices?.[0]?.message?.content?.trim() ?? "", text);
+  const correctedText = normalizeCorrectedText(parsed.correctedText, text);
+  const translatedText = normalizePlainTextOutput(parsed.translatedText, correctedText);
   if (!translatedText) {
     throw new HttpError(502, "DeepSeek returned an empty translation");
   }
 
-  return translatedText;
+  return { correctedText, translatedText };
 }
 
 async function listTranslations(url: URL, env: Env): Promise<Response> {
@@ -204,11 +209,19 @@ async function deleteTranslation(id: number, env: Env): Promise<Response> {
 function buildSystemPrompt(): string {
   return [
     "You are an English-Chinese bidirectional translator.",
+    "Return one strict JSON object only, with exactly these string fields: correctedText and translatedText.",
+    "Do not wrap the JSON in Markdown or code fences.",
+    "The user message is a JSON object with a text field; translate and correct only that text field.",
+    "correctedText must be the corrected source text.",
+    "If the input is an English word with an obvious spelling mistake, typo, or missing letter, correct it to the intended English word.",
+    "If there is no obvious typo, keep correctedText identical to the user's input after trimming surrounding whitespace.",
+    "Do not rewrite names, product names, abbreviations, or intentional casing unless it is clearly a typo.",
+    "translatedText must contain the translation or dictionary-style answer.",
     "If the input is mainly English, translate it into natural Simplified Chinese.",
     "If the input is mainly Chinese, translate it into natural English.",
-    "Always return plain text only.",
-    "Do not use Markdown formatting, headings, bold markers, bullet markers, numbered lists, hyphen bullets, asterisks, or backticks.",
-    "Use normal line breaks, indentation, and blank lines for structure.",
+    "Inside translatedText, use plain text only.",
+    "Inside translatedText, do not use Markdown formatting, headings, bold markers, bullet markers, numbered lists, hyphen bullets, asterisks, or backticks.",
+    "Inside translatedText, use normal line breaks, indentation, and blank lines for structure.",
     "If the input is a single word or a short vocabulary item, produce a compact dictionary-style answer instead of only one translation.",
     "For vocabulary items, use common English part-of-speech abbreviations such as n., v., adj., adv., prep., conj., pron., interj., and phr.",
     "For each important part of speech, include a concise meaning, one natural example sentence in the source language, and the translation of that example sentence.",
@@ -216,10 +229,38 @@ function buildSystemPrompt(): string {
     "Do not repeat the queried word as a standalone title or heading in the result.",
     "Start vocabulary entries directly with the part of speech and meaning, followed by indented Forms line for verbs, indented Example line, and indented Translation line.",
     "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
-    "Do not add unrelated explanations.",
+    "Do not add unrelated explanations inside translatedText.",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function parseDeepSeekTranslation(
+  value: string,
+  originalText: string,
+): { correctedText: string; translatedText: string } {
+  const jsonText = value
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(jsonText) as { correctedText?: unknown; translatedText?: unknown };
+    if (typeof parsed.translatedText === "string") {
+      return {
+        correctedText: typeof parsed.correctedText === "string" ? parsed.correctedText : originalText,
+        translatedText: parsed.translatedText,
+      };
+    }
+  } catch {
+    // Fall back to plain-text behavior if the provider ignores the JSON instruction.
+  }
+
+  return {
+    correctedText: originalText,
+    translatedText: value,
+  };
 }
 
 function translationResponse(row: TranslationRow) {
@@ -301,6 +342,15 @@ function isCachedTranslation(value: unknown): value is ReturnType<typeof transla
 
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function normalizeCorrectedText(value: string, fallback: string): string {
+  const trimmed = value
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed || trimmed.startsWith("{") || trimmed.startsWith("[")) return fallback;
+  return trimmed;
 }
 
 function normalizePlainTextOutput(value: string, sourceText: string): string {
@@ -1075,6 +1125,10 @@ function simpleAppHtml(): string {
 
       try {
         const data = await translate(value);
+        if (typeof data.text === "string" && data.text !== text.value.trim()) {
+          text.value = data.text;
+          resizeInput();
+        }
         output.textContent = data.translatedText;
         resultMeta.textContent = data.cached ? "Cached" : "Fresh";
         setStatus("Done");
