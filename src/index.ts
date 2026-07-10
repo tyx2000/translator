@@ -778,7 +778,15 @@ function simpleAppHtml(): string {
 
     .history-actions {
       display: flex;
-      justify-content: flex-end;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .history-time {
+      color: #6b7280;
+      font-size: 12px;
+      white-space: nowrap;
     }
 
     .delete-history {
@@ -1040,6 +1048,13 @@ function simpleAppHtml(): string {
       return data;
     }
 
+    function formatHistoryTime(value) {
+      const textValue = String(value || "").trim();
+      const match = textValue.match(/^(\\d{4})[-/](\\d{2})[-/](\\d{2})[ T](\\d{2}):(\\d{2}):(\\d{2})/);
+      if (!match) return textValue;
+      return match.slice(1, 4).join("-") + " " + match.slice(4, 7).join(":");
+    }
+
     function fillHistory(items) {
       historyBody.innerHTML = "";
       if (!items.length) {
@@ -1055,21 +1070,25 @@ function simpleAppHtml(): string {
         const source = document.createElement("div");
         const result = document.createElement("div");
         const action = document.createElement("div");
+        const time = document.createElement("time");
         const deleteButton = document.createElement("button");
         row.className = "history-item";
         source.className = "history-source";
         result.className = "history-result";
         action.className = "history-actions";
+        time.className = "history-time";
         deleteButton.className = "delete-history";
         deleteButton.type = "button";
         deleteButton.textContent = "Delete";
         source.textContent = item.text;
         result.textContent = item.translatedText;
+        time.dateTime = String(item.createdAt || "");
+        time.textContent = formatHistoryTime(item.createdAt);
         deleteButton.addEventListener("click", async (event) => {
           event.stopPropagation();
           await deleteHistoryItem(item.id);
         });
-        action.appendChild(deleteButton);
+        action.append(time, deleteButton);
         row.append(source, result, action);
         historyBody.appendChild(row);
       }
