@@ -942,7 +942,6 @@ function simpleAppHtml(): string {
         <div class="pane-head">
           <span>Input</span>
           <div class="pane-actions">
-            <button class="text-button" type="button" id="clearButton">Clear</button>
             <button class="primary" id="translateButton" type="submit">Translate</button>
           </div>
         </div>
@@ -969,7 +968,7 @@ function simpleAppHtml(): string {
     <div class="actions">
       <div class="hint">单个单词会返回 n. / v. / adj. 等词性解释和例句；句子和段落会直接英中互译。</div>
       <div class="buttons">
-        <button type="button" id="copyButton">Copy</button>
+        <button type="button" id="clearButton">Clear</button>
         <button type="button" id="historyButton">History</button>
       </div>
     </div>
@@ -1004,7 +1003,6 @@ function simpleAppHtml(): string {
     const translationLoader = document.querySelector("#translationLoader");
     const translateButton = document.querySelector("#translateButton");
     const clearButton = document.querySelector("#clearButton");
-    const copyButton = document.querySelector("#copyButton");
     const historyButton = document.querySelector("#historyButton");
     const historyModal = document.querySelector("#historyModal");
     const closeHistoryButton = document.querySelector("#closeHistoryButton");
@@ -1169,13 +1167,6 @@ function simpleAppHtml(): string {
       resizeInput();
       text.focus();
       setStatus("Ready");
-    });
-
-    copyButton.addEventListener("click", async () => {
-      const value = output.textContent.trim();
-      if (!value) return;
-      await navigator.clipboard.writeText(value);
-      setStatus("Copied");
     });
 
     historyButton.addEventListener("click", () => {
