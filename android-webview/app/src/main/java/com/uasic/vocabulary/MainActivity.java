@@ -25,7 +25,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
   private WebView webView;
   private TextToSpeech textToSpeech;
-  private boolean textToSpeechReady = false;
+  private volatile boolean textToSpeechInitialized = false;
+  private volatile boolean textToSpeechReady = false;
+  private String pendingSpeechText;
 
   @SuppressLint("SetJavaScriptEnabled")
   @Override
@@ -102,11 +104,31 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
   @Override
   public void onInit(int status) {
-    if (status != TextToSpeech.SUCCESS || textToSpeech == null) return;
-    int result = textToSpeech.setLanguage(Locale.US);
-    textToSpeechReady =
-      result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED;
-    if (textToSpeechReady) selectAmericanVoice();
+    if (status != TextToSpeech.SUCCESS || textToSpeech == null) {
+      textToSpeechInitialized = true;
+      textToSpeechReady = false;
+      return;
+    }
+
+    textToSpeechReady = configureLanguage(Locale.US) || configureLanguage(Locale.ENGLISH) || configureLanguage(Locale.getDefault());
+    textToSpeechInitialized = true;
+
+    if (textToSpeechReady) {
+      textToSpeech.setSpeechRate(0.9f);
+      textToSpeech.setPitch(1.05f);
+      selectAmericanVoice();
+      if (pendingSpeechText != null) {
+        String text = pendingSpeechText;
+        pendingSpeechText = null;
+        speakText(text);
+      }
+    }
+  }
+
+  private boolean configureLanguage(Locale locale) {
+    if (textToSpeech == null) return false;
+    int result = textToSpeech.setLanguage(locale);
+    return result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED;
   }
 
   private void selectAmericanVoice() {
@@ -161,14 +183,25 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
   private final class TtsBridge {
     @JavascriptInterface
-    public void speak(String text) {
-      if (text == null || text.trim().isEmpty()) return;
+    public boolean speak(String text) {
+      if (text == null || text.trim().isEmpty() || textToSpeech == null) return false;
+      if (textToSpeechInitialized && !textToSpeechReady) return false;
+      String speechText = text.trim();
       runOnUiThread(
         () -> {
-          if (!textToSpeechReady || textToSpeech == null) return;
-          textToSpeech.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, "vocabulary-word");
+          if (!textToSpeechInitialized) {
+            pendingSpeechText = speechText;
+            return;
+          }
+          if (textToSpeechReady) speakText(speechText);
         }
       );
+      return true;
     }
+  }
+
+  private void speakText(String text) {
+    if (textToSpeech == null) return;
+    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "vocabulary-word");
   }
 }

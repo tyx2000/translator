@@ -1143,9 +1143,13 @@ function simpleAppHtml(): string {
     function speakWithAndroidBridge(value) {
       const bridge = window.AndroidTts;
       if (!bridge || typeof bridge.speak !== "function") return false;
-      bridge.speak(value);
-      setStatus("Speaking");
-      return true;
+      try {
+        if (!bridge.speak(value)) return false;
+        setStatus("Speaking");
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function speakCurrentWord() {
