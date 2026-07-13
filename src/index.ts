@@ -6,6 +6,8 @@ type TranslationRow = {
   id: number;
   source_text: string;
   translated_text: string;
+  phonetic_text: string | null;
+  speech_text: string | null;
   cache_key: string;
   created_at: string;
 };
@@ -28,7 +30,7 @@ const ICON_HEADERS = {
 };
 
 const FIXED_MODEL = "deepseek-v4-flash";
-const PROMPT_VERSION = "plain-dictionary-v7";
+const PROMPT_VERSION = "plain-dictionary-v9";
 const FAVICON_PNG_BASE64 =
   "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";
 
@@ -101,16 +103,22 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
       INSERT INTO translations (
         source_text,
         translated_text,
+        phonetic_text,
+        speech_text,
         cache_key
       )
-      VALUES (?, ?, ?)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(cache_key) DO UPDATE SET
-        translated_text = excluded.translated_text
+        translated_text = excluded.translated_text,
+        phonetic_text = excluded.phonetic_text,
+        speech_text = excluded.speech_text
     `,
   )
     .bind(
       deepseek.correctedText,
       deepseek.translatedText,
+      deepseek.phoneticText,
+      deepseek.speechText,
       cacheKey,
     )
     .run();
@@ -131,7 +139,7 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
 async function requestDeepSeekTranslation(
   env: Env,
   text: string,
-): Promise<{ correctedText: string; translatedText: string }> {
+): Promise<{ correctedText: string; translatedText: string; phoneticText: string; speechText: string }> {
   if (!env.DEEPSEEK_API_KEY) {
     throw new HttpError(500, "DEEPSEEK_API_KEY secret is not configured");
   }
@@ -171,11 +179,13 @@ async function requestDeepSeekTranslation(
   const parsed = parseDeepSeekTranslation(result.choices?.[0]?.message?.content?.trim() ?? "", text);
   const correctedText = normalizeCorrectedText(parsed.correctedText, text);
   const translatedText = normalizePlainTextOutput(parsed.translatedText, correctedText);
+  const phoneticText = normalizeMetadataText(parsed.phoneticText);
+  const speechText = normalizeMetadataText(parsed.speechText);
   if (!translatedText) {
     throw new HttpError(502, "DeepSeek returned an empty translation");
   }
 
-  return { correctedText, translatedText };
+  return { correctedText, translatedText, phoneticText, speechText };
 }
 
 async function listTranslations(url: URL, env: Env): Promise<Response> {
@@ -209,7 +219,7 @@ async function deleteTranslation(id: number, env: Env): Promise<Response> {
 function buildSystemPrompt(): string {
   return [
     "You are an English-Chinese bidirectional translator.",
-    "Return one strict JSON object only, with exactly these string fields: correctedText and translatedText.",
+    "Return one strict JSON object only, with exactly these string fields: correctedText, translatedText, phoneticText, and speechText.",
     "Do not wrap the JSON in Markdown or code fences.",
     "The user message is a JSON object with a text field; translate and correct only that text field.",
     "correctedText must be the corrected source text.",
@@ -237,6 +247,9 @@ function buildSystemPrompt(): string {
     "Do not repeat the queried word as a standalone title or heading in the result.",
     "Start vocabulary entries directly with the part of speech and meaning, followed by an indented Forms line for verbs, then an indented example sentence line, then an indented example translation line.",
     "Do not prefix example sentences or example translations with labels such as Example, Translation, 例句, or 翻译.",
+    "If correctedText is one English word, set phoneticText to the American English IPA pronunciation wrapped in slashes, and set speechText to correctedText.",
+    "If correctedText is one Chinese vocabulary item and its primary English translation is one English word, set phoneticText to that English word's American English IPA pronunciation wrapped in slashes, and set speechText to that English word.",
+    "If neither rule applies, set phoneticText and speechText to empty strings.",
     "For sentences or longer passages, return only the translation and preserve paragraph breaks, punctuation intent, names, and technical terms.",
     "Do not add unrelated explanations inside translatedText.",
   ]
@@ -247,7 +260,7 @@ function buildSystemPrompt(): string {
 function parseDeepSeekTranslation(
   value: string,
   originalText: string,
-): { correctedText: string; translatedText: string } {
+): { correctedText: string; translatedText: string; phoneticText: string; speechText: string } {
   const jsonText = value
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
@@ -255,11 +268,18 @@ function parseDeepSeekTranslation(
     .trim();
 
   try {
-    const parsed = JSON.parse(jsonText) as { correctedText?: unknown; translatedText?: unknown };
+    const parsed = JSON.parse(jsonText) as {
+      correctedText?: unknown;
+      translatedText?: unknown;
+      phoneticText?: unknown;
+      speechText?: unknown;
+    };
     if (typeof parsed.translatedText === "string") {
       return {
         correctedText: typeof parsed.correctedText === "string" ? parsed.correctedText : originalText,
         translatedText: parsed.translatedText,
+        phoneticText: typeof parsed.phoneticText === "string" ? parsed.phoneticText : "",
+        speechText: typeof parsed.speechText === "string" ? parsed.speechText : "",
       };
     }
   } catch {
@@ -269,6 +289,8 @@ function parseDeepSeekTranslation(
   return {
     correctedText: originalText,
     translatedText: value,
+    phoneticText: "",
+    speechText: "",
   };
 }
 
@@ -277,6 +299,8 @@ function translationResponse(row: TranslationRow) {
     id: row.id,
     text: row.source_text,
     translatedText: normalizePlainTextOutput(row.translated_text, row.source_text),
+    phoneticText: normalizeMetadataText(row.phonetic_text),
+    speechText: normalizeMetadataText(row.speech_text),
     createdAt: row.created_at,
   };
 }
@@ -286,6 +310,8 @@ function translationPayload(value: ReturnType<typeof translationResponse>) {
     id: value.id,
     text: value.text,
     translatedText: normalizePlainTextOutput(value.translatedText, value.text),
+    phoneticText: normalizeMetadataText(value.phoneticText),
+    speechText: normalizeMetadataText(value.speechText),
     createdAt: value.createdAt,
   };
 }
@@ -360,6 +386,14 @@ function normalizeCorrectedText(value: string, fallback: string): string {
     .trim();
   if (!trimmed || trimmed.startsWith("{") || trimmed.startsWith("[")) return fallback;
   return trimmed;
+}
+
+function normalizeMetadataText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizePlainTextOutput(value: string, sourceText: string): string {
@@ -557,6 +591,40 @@ function simpleAppHtml(): string {
     .pane-actions .primary {
       height: 30px;
       padding: 0 12px;
+    }
+
+    .result-actions {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .pronunciation {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      color: #111827;
+    }
+
+    .pronunciation[hidden] {
+      display: none;
+    }
+
+    .phonetic {
+      overflow: hidden;
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .speak-button {
+      width: auto;
+      height: 30px;
+      padding: 0 10px;
     }
 
     .text-button {
@@ -872,6 +940,19 @@ function simpleAppHtml(): string {
         padding: 0 10px;
       }
 
+      .result-actions {
+        gap: 8px;
+      }
+
+      .phonetic {
+        max-width: 46vw;
+      }
+
+      .speak-button {
+        height: 28px;
+        padding: 0 8px;
+      }
+
       .hexagram-loader {
         width: 60px;
         height: 60px;
@@ -959,7 +1040,12 @@ function simpleAppHtml(): string {
       <section aria-label="Result">
         <div class="pane-head">
           <span>Result</span>
-          <span id="resultMeta">No result</span>
+          <div class="result-actions">
+            <span class="pronunciation" id="pronunciation" hidden>
+              <span class="phonetic" id="phoneticText"></span>
+              <button class="speak-button" type="button" id="speakButton">Speak</button>
+            </span>
+          </div>
         </div>
         <div class="output-wrap">
           <pre class="output" id="output"></pre>
@@ -1007,7 +1093,9 @@ function simpleAppHtml(): string {
     const text = document.querySelector("#text");
     const output = document.querySelector("#output");
     const status = document.querySelector("#status");
-    const resultMeta = document.querySelector("#resultMeta");
+    const pronunciation = document.querySelector("#pronunciation");
+    const phoneticText = document.querySelector("#phoneticText");
+    const speakButton = document.querySelector("#speakButton");
     const translationLoader = document.querySelector("#translationLoader");
     const translateButton = document.querySelector("#translateButton");
     const clearButton = document.querySelector("#clearButton");
@@ -1023,6 +1111,7 @@ function simpleAppHtml(): string {
     const historyPageSize = 15;
     let historyPage = 0;
     let historyHasNext = false;
+    let currentSpeechText = "";
 
     function setStatus(value) {
       status.textContent = value;
@@ -1030,6 +1119,54 @@ function simpleAppHtml(): string {
 
     function setLoading(isLoading) {
       translationLoader.hidden = !isLoading;
+    }
+
+    function setPronunciation(phonetic, speechText) {
+      const cleanPhonetic = String(phonetic || "").trim();
+      const cleanSpeechText = String(speechText || "").trim();
+      currentSpeechText = cleanPhonetic && cleanSpeechText ? cleanSpeechText : "";
+      phoneticText.textContent = cleanPhonetic;
+      pronunciation.hidden = !currentSpeechText;
+      speakButton.disabled = !currentSpeechText;
+    }
+
+    function getAmericanVoice() {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices();
+      const americanVoices = voices.filter((voice) => voice.lang.toLowerCase() === "en-us");
+      const femaleVoice = americanVoices.find((voice) =>
+        /female|woman|samantha|victoria|allison|ava|susan|zira|jenny|aria|joanna|kendra|salli/i.test(voice.name)
+      );
+      return femaleVoice || americanVoices[0] || voices.find((voice) => voice.lang.toLowerCase().startsWith("en-")) || null;
+    }
+
+    function speakWithAndroidBridge(value) {
+      const bridge = window.AndroidTts;
+      if (!bridge || typeof bridge.speak !== "function") return false;
+      bridge.speak(value);
+      setStatus("Speaking");
+      return true;
+    }
+
+    function speakCurrentWord() {
+      if (!currentSpeechText) {
+        setStatus("Speech unavailable");
+        return;
+      }
+      if (speakWithAndroidBridge(currentSpeechText)) return;
+      if (!("speechSynthesis" in window)) {
+        setStatus("Speech unavailable");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(currentSpeechText);
+      utterance.lang = "en-US";
+      utterance.rate = 0.9;
+      utterance.pitch = 1.05;
+      const voice = getAmericanVoice();
+      if (voice) utterance.voice = voice;
+      window.speechSynthesis.speak(utterance);
+      setStatus("Speaking");
     }
 
     function resizeInput() {
@@ -1152,6 +1289,7 @@ function simpleAppHtml(): string {
 
       translateButton.disabled = true;
       setLoading(true);
+      setPronunciation("", "");
       setStatus("Translating");
 
       try {
@@ -1161,7 +1299,7 @@ function simpleAppHtml(): string {
           resizeInput();
         }
         output.textContent = data.translatedText;
-        resultMeta.textContent = data.cached ? "Cached" : "Fresh";
+        setPronunciation(data.phoneticText, data.speechText);
         setStatus("Done");
       } catch (error) {
         setStatus(error.message);
@@ -1187,6 +1325,12 @@ function simpleAppHtml(): string {
       text.focus();
       setStatus("Ready");
     });
+
+    speakButton.addEventListener("click", speakCurrentWord);
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.addEventListener("voiceschanged", getAmericanVoice);
+    }
 
     historyButton.addEventListener("click", () => {
       historyPage = 0;
