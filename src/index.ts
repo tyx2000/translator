@@ -178,7 +178,7 @@ async function requestDeepSeekTranslation(
   }
 
   const baseUrl = trimTrailingSlash(env.DEEPSEEK_BASE_URL || "https://api.deepseek.com");
-  const parsed = await requestDeepSeekCompletion(env, baseUrl, text, buildSystemPrompt(), 220);
+  const parsed = await requestDeepSeekCompletion(env, baseUrl, text, buildSystemPrompt(), jsonTokenBudget(text));
   const normalized = normalizeDeepSeekResult(parsed, text);
   if (normalized.translatedText) {
     if (shouldVerifySpellingError(text, normalized.translatedText)) {
@@ -192,7 +192,7 @@ async function requestDeepSeekTranslation(
     return normalized;
   }
 
-  const fallbackParsed = await requestDeepSeekCompletion(env, baseUrl, text, buildFallbackSystemPrompt(), 180);
+  const fallbackParsed = await requestDeepSeekCompletion(env, baseUrl, text, buildFallbackSystemPrompt(), jsonTokenBudget(text));
   const fallbackNormalized = normalizeDeepSeekResult(fallbackParsed, text);
   if (shouldVerifySpellingError(text, fallbackNormalized.translatedText)) {
     const verified = normalizeDeepSeekResult(await requestPlainTranslation(env, baseUrl, text), text);
@@ -278,7 +278,7 @@ async function requestPlainTranslation(
     body: JSON.stringify({
       model: FIXED_MODEL,
       temperature: 0,
-      max_tokens: 80,
+      max_tokens: Math.min(800, Math.max(80, text.length * 2)),
       messages: [
         { role: "system", content: buildPlainTranslationPrompt() },
         {
@@ -308,7 +308,10 @@ function normalizeDeepSeekResult(
   parsed: { correctedText: string; translatedText: string; phoneticText: string; speechText: string },
   text: string,
 ): { correctedText: string; translatedText: string; phoneticText: string; speechText: string } {
-  const translatedText = normalizePlainTextOutput(parsed.translatedText, text);
+  const normalized = normalizePlainTextOutput(parsed.translatedText, text);
+  // A translation that still looks like JSON means parsing failed; treat it as
+  // empty so the caller retries instead of storing and displaying raw JSON.
+  const translatedText = looksLikeJsonPayload(normalized) ? "" : normalized;
   const isSpellingError = translatedText === "拼写错误";
   const correctedText = isSpellingError ? text : normalizeCorrectedText(parsed.correctedText, text);
   const phoneticText = normalizeMetadataText(parsed.phoneticText);
@@ -412,28 +415,27 @@ function parseDeepSeekTranslation(
   value: string,
   originalText: string,
 ): { correctedText: string; translatedText: string; phoneticText: string; speechText: string } {
-  const jsonText = value
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
+  const jsonText = stripCodeFences(value);
 
   try {
     const parsed = JSON.parse(jsonText) as {
       correctedText?: unknown;
-      translatedText?: unknown;
       phoneticText?: unknown;
       speechText?: unknown;
-    };
-    if (typeof parsed.translatedText === "string") {
-      const nested = parseNestedTranslationObject(parsed.translatedText);
+    } & Record<string, unknown>;
+    const translatedText = pickTranslationField(parsed);
+    if (typeof translatedText === "string") {
+      const nested = parseNestedTranslationObject(translatedText);
       return {
         correctedText: nested?.correctedText ?? (typeof parsed.correctedText === "string" ? parsed.correctedText : originalText),
-        translatedText: nested?.translatedText ?? parsed.translatedText,
+        translatedText: nested?.translatedText ?? translatedText,
         phoneticText: nested?.phoneticText ?? (typeof parsed.phoneticText === "string" ? parsed.phoneticText : ""),
         speechText: nested?.speechText ?? (typeof parsed.speechText === "string" ? parsed.speechText : ""),
       };
     }
+    // Valid JSON without a usable translation field: never surface the raw
+    // JSON; an empty translatedText makes the caller retry with a fallback prompt.
+    return { correctedText: originalText, translatedText: "", phoneticText: "", speechText: "" };
   } catch {
     const nested = parseNestedTranslationObject(value);
     if (nested) {
@@ -444,6 +446,10 @@ function parseDeepSeekTranslation(
         speechText: nested.speechText ?? "",
       };
     }
+  }
+
+  if (looksLikeJsonPayload(value)) {
+    return { correctedText: originalText, translatedText: "", phoneticText: "", speechText: "" };
   }
 
   return {
@@ -457,43 +463,78 @@ function parseDeepSeekTranslation(
 function parseNestedTranslationObject(
   value: string,
 ): { correctedText?: string; translatedText: string; phoneticText?: string; speechText?: string } | null {
-  const trimmed = value
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
-  if (!trimmed.startsWith("{")) return null;
+  const trimmed = stripCodeFences(value);
+  const start = trimmed.indexOf("{");
+  if (start === -1) return null;
 
-  try {
-    const parsed = JSON.parse(trimmed) as {
-      correctedText?: unknown;
-      translatedText?: unknown;
-      phoneticText?: unknown;
-      speechText?: unknown;
-    };
-    if (typeof parsed.translatedText !== "string") return null;
-    return {
-      correctedText: typeof parsed.correctedText === "string" ? parsed.correctedText : undefined,
-      translatedText: parsed.translatedText,
-      phoneticText: typeof parsed.phoneticText === "string" ? parsed.phoneticText : undefined,
-      speechText: typeof parsed.speechText === "string" ? parsed.speechText : undefined,
-    };
-  } catch {
-    const translatedText = extractJsonStringField(trimmed, "translatedText");
-    if (!translatedText) return null;
+  const body = trimmed.slice(start);
+  const end = body.lastIndexOf("}");
+  const candidates = end > 0 ? [body.slice(0, end + 1), body] : [body];
 
-    return {
-      correctedText: extractJsonStringField(trimmed, "correctedText"),
-      translatedText,
-      phoneticText: extractJsonStringField(trimmed, "phoneticText"),
-      speechText: extractJsonStringField(trimmed, "speechText"),
-    };
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as {
+        correctedText?: unknown;
+        phoneticText?: unknown;
+        speechText?: unknown;
+      } & Record<string, unknown>;
+      const translatedText = pickTranslationField(parsed);
+      if (typeof translatedText !== "string") continue;
+      return {
+        correctedText: typeof parsed.correctedText === "string" ? parsed.correctedText : undefined,
+        translatedText,
+        phoneticText: typeof parsed.phoneticText === "string" ? parsed.phoneticText : undefined,
+        speechText: typeof parsed.speechText === "string" ? parsed.speechText : undefined,
+      };
+    } catch {
+      // fall through to regex extraction
+    }
   }
+
+  const translatedText =
+    extractJsonStringField(body, "translatedText") ??
+    extractJsonStringField(body, "translation") ??
+    extractJsonStringField(body, "translated_text");
+  if (!translatedText) return null;
+
+  return {
+    correctedText: extractJsonStringField(body, "correctedText"),
+    translatedText,
+    phoneticText: extractJsonStringField(body, "phoneticText"),
+    speechText: extractJsonStringField(body, "speechText"),
+  };
+}
+
+function pickTranslationField(parsed: Record<string, unknown>): string | undefined {
+  for (const key of ["translatedText", "translation", "translated_text", "translated"]) {
+    const candidate = parsed[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+  }
+  return undefined;
+}
+
+function stripCodeFences(value: string): string {
+  return value
+    .replace(/^\s*```[a-zA-Z0-9_-]*\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+}
+
+function looksLikeJsonPayload(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/"(?:correctedText|translatedText|translation|translated_text|phoneticText|speechText)"\s*:/.test(trimmed)) {
+    return true;
+  }
+  return /^[{[]/.test(trimmed) && /"\s*:/.test(trimmed);
 }
 
 function extractJsonStringField(value: string, field: string): string | undefined {
   const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = value.match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "s"));
+  const match =
+    value.match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "s")) ??
+    // Truncated output: the string value never got its closing quote.
+    value.match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])+)$`, "s"));
   if (!match) return undefined;
 
   try {
@@ -588,6 +629,12 @@ function isCachedTranslation(value: unknown): value is ReturnType<typeof transla
     "translatedText" in value &&
     typeof (value as { translatedText?: unknown }).translatedText === "string"
   );
+}
+
+function jsonTokenBudget(text: string): number {
+  // The JSON reply repeats the input in correctedText/speechText plus the
+  // translation itself, so scale the budget with the input length.
+  return Math.min(1200, Math.max(300, text.length * 3));
 }
 
 function trimTrailingSlash(value: string): string {
