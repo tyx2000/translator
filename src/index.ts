@@ -24,15 +24,9 @@ const HTML_HEADERS = {
   "cache-control": "no-store",
 };
 
-const ICON_HEADERS = {
-  "content-type": "image/png",
-  "cache-control": "public, max-age=31536000, immutable",
-};
-
 const FIXED_MODEL = "deepseek-v4-flash";
-const PROMPT_VERSION = "plain-translation-v21";
-const FAVICON_PNG_BASE64 =
-  "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";
+const PROMPT_VERSION = "plain-translation-v22";
+const SPELL_ERROR = "SPELL ERROR";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -44,10 +38,6 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/") {
       return html(simpleAppHtml());
-    }
-
-    if (request.method === "GET" && url.pathname === "/favicon.ico") {
-      return png(FAVICON_PNG_BASE64);
     }
 
     try {
@@ -82,11 +72,15 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
   const cached = await env.TRANSLATION_CACHE.get(`translation:${cacheKey}`, "json");
   if (isCachedTranslation(cached)) {
     const payload = translationPayload(cached);
-    if (payload.translatedText === "拼写错误") {
+    if (payload.translatedText === SPELL_ERROR) {
       ctx.waitUntil(env.TRANSLATION_CACHE.delete(`translation:${cacheKey}`));
       return spellingErrorResponse(payload.text);
     }
-    return json({ ...payload, cached: true });
+    if (isUsableTranslation(payload.translatedText, payload.text)) {
+      return json({ ...payload, cached: true });
+    }
+    // Bad legacy entry (empty or raw JSON): drop it and translate fresh.
+    ctx.waitUntil(env.TRANSLATION_CACHE.delete(`translation:${cacheKey}`));
   }
 
   const existing = await env.DB.prepare(
@@ -97,11 +91,14 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
 
   if (existing) {
     const payload = translationResponse(existing);
-    if (payload.translatedText === "拼写错误") {
+    if (payload.translatedText === SPELL_ERROR) {
       return spellingErrorResponse(payload.text);
     }
-    ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
-    return json({ ...payload, cached: true });
+    if (isUsableTranslation(payload.translatedText, payload.text)) {
+      ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
+      return json({ ...payload, cached: true });
+    }
+    // Bad legacy row: fall through so a fresh translation upserts over it.
   }
 
   if (!isSingleEnglishWord(text)) {
@@ -118,16 +115,18 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
 
     if (existingByText) {
       const payload = translationResponse(existingByText);
-      if (payload.translatedText === "拼写错误") {
+      if (payload.translatedText === SPELL_ERROR) {
         return spellingErrorResponse(payload.text);
       }
-      ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
-      return json({ ...payload, cached: true });
+      if (isUsableTranslation(payload.translatedText, payload.text)) {
+        ctx.waitUntil(writeTranslationCache(env, cacheKey, payload));
+        return json({ ...payload, cached: true });
+      }
     }
   }
 
   const deepseek = await requestDeepSeekTranslation(env, text);
-  if (deepseek.translatedText === "拼写错误") {
+  if (deepseek.translatedText === SPELL_ERROR) {
     return spellingErrorResponse(deepseek.correctedText);
   }
 
@@ -178,90 +177,51 @@ async function requestDeepSeekTranslation(
   }
 
   const baseUrl = trimTrailingSlash(env.DEEPSEEK_BASE_URL || "https://api.deepseek.com");
-  const parsed = await requestDeepSeekCompletion(env, baseUrl, text, buildSystemPrompt(), jsonTokenBudget(text));
-  const normalized = normalizeDeepSeekResult(parsed, text);
-  if (normalized.translatedText) {
-    if (shouldVerifySpellingError(text, normalized.translatedText)) {
-      const verified = normalizeDeepSeekResult(await requestPlainTranslation(env, baseUrl, text), text);
-      if (verified.translatedText && verified.translatedText !== "拼写错误") return verified;
+  let lastError: HttpError | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let parsed: { correctedText: string; translatedText: string; phoneticText: string; speechText: string };
+    try {
+      parsed = await requestPlainTranslation(env, baseUrl, text);
+    } catch (error) {
+      lastError = error instanceof HttpError ? error : new HttpError(502, "DeepSeek request failed");
+      continue;
     }
-    if (shouldExpandSingleWordTranslation(text, normalized.translatedText)) {
-      const expanded = normalizeDeepSeekResult(await requestPlainTranslation(env, baseUrl, text), text);
-      if (expanded.translatedText && expanded.translatedText !== "拼写错误") return expanded;
-    }
+
+    const normalized = normalizeDeepSeekResult(parsed, text);
+    if (!normalized.translatedText) continue;
+    // A spelling error only makes sense for a single word; for anything longer
+    // it is a model mistake, so keep trying for a real translation.
+    if (normalized.translatedText === SPELL_ERROR && !isSingleEnglishWord(text)) continue;
     return normalized;
   }
 
-  const fallbackParsed = await requestDeepSeekCompletion(env, baseUrl, text, buildFallbackSystemPrompt(), jsonTokenBudget(text));
-  const fallbackNormalized = normalizeDeepSeekResult(fallbackParsed, text);
-  if (shouldVerifySpellingError(text, fallbackNormalized.translatedText)) {
-    const verified = normalizeDeepSeekResult(await requestPlainTranslation(env, baseUrl, text), text);
-    if (verified.translatedText && verified.translatedText !== "拼写错误") return verified;
+  // An API failure must not masquerade as a spelling error or empty result.
+  if (lastError) throw lastError;
+  if (isSingleEnglishWord(text)) {
+    return { correctedText: text, translatedText: SPELL_ERROR, phoneticText: "", speechText: "" };
   }
-  if (shouldExpandSingleWordTranslation(text, fallbackNormalized.translatedText)) {
-    const expanded = normalizeDeepSeekResult(await requestPlainTranslation(env, baseUrl, text), text);
-    if (expanded.translatedText && expanded.translatedText !== "拼写错误") return expanded;
-  }
-  if (!fallbackNormalized.translatedText) {
-    const plain = await requestPlainTranslation(env, baseUrl, text);
-    const plainNormalized = normalizeDeepSeekResult(plain, text);
-    if (plainNormalized.translatedText) {
-      return plainNormalized;
-    }
-    if (isSingleEnglishWord(text)) {
-      return {
-        correctedText: text,
-        translatedText: "拼写错误",
-        phoneticText: "",
-        speechText: "",
-      };
-    }
-    throw new HttpError(502, "DeepSeek returned an empty translation");
-  }
-
-  return fallbackNormalized;
+  throw new HttpError(502, "DeepSeek returned an empty translation");
 }
 
-async function requestDeepSeekCompletion(
-  env: Env,
-  baseUrl: string,
-  text: string,
-  systemPrompt: string,
-  maxTokens: number,
-): Promise<{ correctedText: string; translatedText: string; phoneticText: string; speechText: string }> {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${env.DEEPSEEK_API_KEY}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: FIXED_MODEL,
-      temperature: 0.2,
-      max_tokens: maxTokens,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ text }),
-        },
-      ],
-    }),
-  });
-
-  const result = (await response.json()) as {
+async function readCompletionBody(response: Response): Promise<{
+  choices?: Array<{ message?: { content?: string } }>;
+}> {
+  const raw = await response.text();
+  let result: {
     error?: { message?: string };
     choices?: Array<{ message?: { content?: string } }>;
-  };
+  } = {};
+  try {
+    result = JSON.parse(raw) as typeof result;
+  } catch {
+    // Gateways can answer with HTML or plain text; keep result empty.
+  }
 
   if (!response.ok) {
     throw new HttpError(response.status, result.error?.message ?? "DeepSeek request failed");
   }
-
-  return parseDeepSeekTranslation(result.choices?.[0]?.message?.content?.trim() ?? "", text);
+  return result;
 }
 
 async function requestPlainTranslation(
@@ -278,7 +238,7 @@ async function requestPlainTranslation(
     body: JSON.stringify({
       model: FIXED_MODEL,
       temperature: 0,
-      max_tokens: Math.min(800, Math.max(80, text.length * 2)),
+      max_tokens: Math.min(2000, Math.max(100, 50 + text.length * 2)),
       messages: [
         { role: "system", content: buildPlainTranslationPrompt() },
         {
@@ -289,13 +249,7 @@ async function requestPlainTranslation(
     }),
   });
 
-  const result = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  if (!response.ok) {
-    return { correctedText: text, translatedText: "", phoneticText: "", speechText: "" };
-  }
-
+  const result = await readCompletionBody(response);
   return {
     correctedText: text,
     translatedText: result.choices?.[0]?.message?.content?.trim() ?? "",
@@ -311,8 +265,9 @@ function normalizeDeepSeekResult(
   const normalized = normalizePlainTextOutput(parsed.translatedText, text);
   // A translation that still looks like JSON means parsing failed; treat it as
   // empty so the caller retries instead of storing and displaying raw JSON.
-  const translatedText = looksLikeJsonPayload(normalized) ? "" : normalized;
-  const isSpellingError = translatedText === "拼写错误";
+  // Exception: when the source itself is JSON-like, its translation legitimately is too.
+  const translatedText = looksLikeJsonPayload(normalized) && !looksLikeJsonPayload(text) ? "" : normalized;
+  const isSpellingError = translatedText === SPELL_ERROR;
   const correctedText = isSpellingError ? text : normalizeCorrectedText(parsed.correctedText, text);
   const phoneticText = normalizeMetadataText(parsed.phoneticText);
   const speechText = isSpellingError ? "" : normalizeSpeechText(parsed.speechText, text, translatedText);
@@ -326,7 +281,7 @@ async function listTranslations(url: URL, env: Env): Promise<Response> {
   const result = await env.DB.prepare(
     `
       SELECT * FROM translations
-      WHERE translated_text NOT LIKE '拼写%'
+      WHERE translated_text NOT LIKE 'SPELL ERROR%'
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `,
@@ -353,7 +308,7 @@ function spellingErrorResponse(text: string): Response {
     {
       id: null,
       text,
-      translatedText: "拼写错误",
+      translatedText: SPELL_ERROR,
       phoneticText: "",
       speechText: "",
       createdAt: currentTimestamp(),
@@ -363,101 +318,13 @@ function spellingErrorResponse(text: string): Response {
   );
 }
 
-function buildSystemPrompt(): string {
-  return [
-    "You are an English-Chinese bidirectional translator.",
-    "Return one strict JSON object only, with exactly these string fields: correctedText, translatedText, phoneticText, and speechText.",
-    "Do not wrap the JSON in Markdown or code fences.",
-    "The user message is JSON with a text field. Process only that text.",
-    "Return only the direct corresponding translation in translatedText: English to Simplified Chinese, Chinese to natural English.",
-    "Do not output explanations, examples, parts of speech, verb forms, IPA, Markdown, labels, or extra notes.",
-    "For a single valid English word, return 2 to 6 common concise Simplified Chinese meanings separated by Chinese semicolons when the word has multiple senses.",
-    "For issue return meanings like 问题；议题；发行；发布. For claim return meanings like 声称；主张；要求；索赔.",
-    "Treat common English words such as claim, issue, fine, right, light, matter, charge, and file as valid words. Do not mark them as spelling errors.",
-    "Only when the input is exactly one English word and it is clearly misspelled or not a valid English word, set translatedText to exactly 拼写错误 and keep correctedText as the original input.",
-    "English phrases and English sentences are valid English input; translate them to Simplified Chinese, never return empty text for them.",
-    "For any valid English input, set speechText to the original English text so it can be read aloud.",
-    "For Chinese input, set speechText to the English translatedText so it can be read aloud.",
-    "Set phoneticText to an empty string.",
-    "Never leave translatedText empty.",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function buildFallbackSystemPrompt(): string {
-  return [
-    "Return strict JSON only: correctedText, translatedText, phoneticText, speechText.",
-    "Translate only between English and Simplified Chinese.",
-    "If input contains Chinese, translate to English.",
-    "If input is English with spaces or punctuation, translate to Simplified Chinese.",
-    "If input is exactly one misspelled English word, translatedText must be exactly 拼写错误.",
-    "If input is a valid single English word, return 2 to 6 common concise Simplified Chinese meanings separated by Chinese semicolons when applicable.",
-    "Common words like claim and issue are valid words, not spelling errors.",
-    "No examples, word forms, definitions, labels, IPA, Markdown, or extra notes.",
-    "speechText is English source text for valid English input, English translation for Chinese input, otherwise empty.",
-    "phoneticText is empty. translatedText must not be empty.",
-  ].join("\n");
-}
-
 function buildPlainTranslationPrompt(): string {
   return [
-    "Translate only between English and Simplified Chinese.",
-    "Return only the translated text, with no labels or explanation.",
-    "For a valid single English word, return 2 to 6 common concise Chinese meanings separated by Chinese semicolons when the word has multiple senses.",
-    "For issue return 问题；议题；发行；发布. For claim return 声称；主张；要求；索赔.",
-    "Do not mark common valid English words as spelling errors. claim, issue, fine, right, light, matter, charge, file are valid words.",
-    "Only if the input is exactly one clearly misspelled/nonexistent English word, return exactly 拼写错误.",
+    "Translate between English and Simplified Chinese.",
+    "Return only the translation.",
+    "For a single English word with multiple senses, return 2 to 6 common meanings separated by ；.",
+    "If the input is exactly one misspelled English word, return SPELL ERROR.",
   ].join("\n");
-}
-
-function parseDeepSeekTranslation(
-  value: string,
-  originalText: string,
-): { correctedText: string; translatedText: string; phoneticText: string; speechText: string } {
-  const jsonText = stripCodeFences(value);
-
-  try {
-    const parsed = JSON.parse(jsonText) as {
-      correctedText?: unknown;
-      phoneticText?: unknown;
-      speechText?: unknown;
-    } & Record<string, unknown>;
-    const translatedText = pickTranslationField(parsed);
-    if (typeof translatedText === "string") {
-      const nested = parseNestedTranslationObject(translatedText);
-      return {
-        correctedText: nested?.correctedText ?? (typeof parsed.correctedText === "string" ? parsed.correctedText : originalText),
-        translatedText: nested?.translatedText ?? translatedText,
-        phoneticText: nested?.phoneticText ?? (typeof parsed.phoneticText === "string" ? parsed.phoneticText : ""),
-        speechText: nested?.speechText ?? (typeof parsed.speechText === "string" ? parsed.speechText : ""),
-      };
-    }
-    // Valid JSON without a usable translation field: never surface the raw
-    // JSON; an empty translatedText makes the caller retry with a fallback prompt.
-    return { correctedText: originalText, translatedText: "", phoneticText: "", speechText: "" };
-  } catch {
-    const nested = parseNestedTranslationObject(value);
-    if (nested) {
-      return {
-        correctedText: nested.correctedText ?? originalText,
-        translatedText: nested.translatedText,
-        phoneticText: nested.phoneticText ?? "",
-        speechText: nested.speechText ?? "",
-      };
-    }
-  }
-
-  if (looksLikeJsonPayload(value)) {
-    return { correctedText: originalText, translatedText: "", phoneticText: "", speechText: "" };
-  }
-
-  return {
-    correctedText: originalText,
-    translatedText: value,
-    phoneticText: "",
-    speechText: "",
-  };
 }
 
 function parseNestedTranslationObject(
@@ -518,6 +385,12 @@ function stripCodeFences(value: string): string {
     .replace(/^\s*```[a-zA-Z0-9_-]*\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
+}
+
+function isUsableTranslation(translatedText: string, sourceText: string): boolean {
+  const trimmed = translatedText.trim();
+  if (!trimmed) return false;
+  return !looksLikeJsonPayload(trimmed) || looksLikeJsonPayload(sourceText);
 }
 
 function looksLikeJsonPayload(value: string): boolean {
@@ -631,12 +504,6 @@ function isCachedTranslation(value: unknown): value is ReturnType<typeof transla
   );
 }
 
-function jsonTokenBudget(text: string): number {
-  // The JSON reply repeats the input in correctedText/speechText plus the
-  // translation itself, so scale the budget with the input length.
-  return Math.min(1200, Math.max(300, text.length * 3));
-}
-
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
@@ -663,7 +530,7 @@ function normalizeMetadataText(value: unknown): string {
 }
 
 function normalizeSpeechText(value: unknown, sourceText: string, translatedText: string): string {
-  if (translatedText.trim() === "拼写错误") return "";
+  if (translatedText.trim() === SPELL_ERROR) return "";
   const provided = normalizeMetadataText(value);
   if (provided) return provided;
   if (containsCjk(sourceText) && containsLatin(translatedText)) return translatedText.trim();
@@ -713,22 +580,13 @@ function isSingleEnglishWord(value: string): boolean {
 
 function normalizeTranslationBySource(value: string, sourceText: string): string {
   const trimmed = value.trim();
+  if (/^spell[\s_-]*error[。.!！]?$/i.test(trimmed)) {
+    return SPELL_ERROR;
+  }
   if (isSingleEnglishWord(sourceText)) {
-    if (/^(?:拼写|拼错|拼写有误|拼写错误)[。.!！]?$/i.test(trimmed)) {
-      return "拼写错误";
-    }
     return trimmed.replace(/\s*;\s*/g, "；");
   }
   return trimmed;
-}
-
-function shouldVerifySpellingError(sourceText: string, translatedText: string): boolean {
-  return isSingleEnglishWord(sourceText) && translatedText.trim() === "拼写错误";
-}
-
-function shouldExpandSingleWordTranslation(sourceText: string, translatedText: string): boolean {
-  const trimmed = translatedText.trim();
-  return isSingleEnglishWord(sourceText) && trimmed !== "拼写错误" && !trimmed.includes("；");
 }
 
 function json(data: unknown, status = 200): Response {
@@ -742,14 +600,6 @@ function html(markup: string): Response {
   return new Response(markup, {
     status: 200,
     headers: HTML_HEADERS,
-  });
-}
-
-function png(base64: string): Response {
-  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-  return new Response(bytes, {
-    status: 200,
-    headers: ICON_HEADERS,
   });
 }
 
@@ -768,7 +618,6 @@ function simpleAppHtml(): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" type="image/png" href="/favicon.ico" />
   <title>Vocabulary</title>
   <style>
     :root {
@@ -1050,15 +899,9 @@ function simpleAppHtml(): string {
     .actions {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 12px;
       padding-top: 16px;
-    }
-
-    .hint {
-      color: #6b7280;
-      font-size: 13px;
-      line-height: 1.45;
     }
 
     .buttons {
@@ -1283,10 +1126,6 @@ function simpleAppHtml(): string {
         padding-top: 10px;
       }
 
-      .hint {
-        display: none;
-      }
-
       .buttons {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1373,7 +1212,6 @@ function simpleAppHtml(): string {
     </section>
 
     <div class="actions">
-      <div class="hint">单个单词会返回 n. / v. / adj. 等词性解释和例句；句子和段落会直接英中互译。</div>
       <div class="buttons">
         <button type="button" id="clearButton">Clear</button>
         <button type="button" id="historyButton">History</button>
