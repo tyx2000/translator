@@ -12,6 +12,17 @@ type TranslationRow = {
   created_at: string;
 };
 
+type GeneratedTranslation = {
+  correctedText: string;
+  translatedText: string;
+  phoneticText: string;
+  speechText: string;
+};
+
+type DictionaryMetadata = { ready: boolean; version: string };
+type DictionaryShardEntry = [word: string, phonetic: string, translation: string];
+type DictionaryShard = Record<string, DictionaryShardEntry>;
+
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
@@ -25,8 +36,10 @@ const HTML_HEADERS = {
 };
 
 const FIXED_MODEL = "deepseek-v4-flash";
-const PROMPT_VERSION = "plain-translation-v22";
+const PROMPT_VERSION = "dictionary-first-v23";
 const SPELL_ERROR = "SPELL ERROR";
+const DICTIONARY_PREFIX = "dictionary:ecdict:v1";
+const DICTIONARY_METADATA_KEY = `${DICTIONARY_PREFIX}:metadata`;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -125,9 +138,17 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     }
   }
 
-  const deepseek = await requestDeepSeekTranslation(env, text);
-  if (deepseek.translatedText === SPELL_ERROR) {
-    return spellingErrorResponse(deepseek.correctedText);
+  let generated: GeneratedTranslation;
+  if (isSingleEnglishWord(text)) {
+    const dictionary = await lookupDictionaryEntry(env, text);
+    if (dictionary.ready) {
+      if (!dictionary.entry) return spellingErrorResponse(text);
+      generated = dictionary.entry;
+    } else {
+      generated = await requestDeepSeekTranslation(env, text);
+    }
+  } else {
+    generated = await requestDeepSeekTranslation(env, text);
   }
 
   await env.DB.prepare(
@@ -147,10 +168,10 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     `,
   )
     .bind(
-      deepseek.correctedText,
-      deepseek.translatedText,
-      deepseek.phoneticText,
-      deepseek.speechText,
+      generated.correctedText,
+      generated.translatedText,
+      generated.phoneticText,
+      generated.speechText,
       cacheKey,
     )
     .run();
@@ -171,7 +192,7 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
 async function requestDeepSeekTranslation(
   env: Env,
   text: string,
-): Promise<{ correctedText: string; translatedText: string; phoneticText: string; speechText: string }> {
+): Promise<GeneratedTranslation> {
   if (!env.DEEPSEEK_API_KEY) {
     throw new HttpError(500, "DEEPSEEK_API_KEY secret is not configured");
   }
@@ -190,18 +211,46 @@ async function requestDeepSeekTranslation(
 
     const normalized = normalizeDeepSeekResult(parsed, text);
     if (!normalized.translatedText) continue;
-    // A spelling error only makes sense for a single word; for anything longer
-    // it is a model mistake, so keep trying for a real translation.
-    if (normalized.translatedText === SPELL_ERROR && !isSingleEnglishWord(text)) continue;
+    if (normalized.translatedText === SPELL_ERROR) continue;
     return normalized;
   }
 
-  // An API failure must not masquerade as a spelling error or empty result.
   if (lastError) throw lastError;
-  if (isSingleEnglishWord(text)) {
-    return { correctedText: text, translatedText: SPELL_ERROR, phoneticText: "", speechText: "" };
-  }
   throw new HttpError(502, "DeepSeek returned an empty translation");
+}
+
+async function lookupDictionaryEntry(
+  env: Env,
+  text: string,
+): Promise<{ ready: boolean; entry: GeneratedTranslation | null }> {
+  const shardKey = `${DICTIONARY_PREFIX}:shard:${dictionaryShardName(text)}`;
+  const [metadata, shard] = await Promise.all([
+    env.TRANSLATION_CACHE.get<DictionaryMetadata>(DICTIONARY_METADATA_KEY, "json"),
+    env.TRANSLATION_CACHE.get<DictionaryShard>(shardKey, "json"),
+  ]);
+
+  if (!metadata?.ready) return { ready: false, entry: null };
+  const dictionaryEntry = shard?.[text.toLowerCase()];
+  if (!dictionaryEntry) return { ready: true, entry: null };
+
+  const [word, phonetic, translation] = dictionaryEntry;
+
+  return {
+    ready: true,
+    entry: {
+      correctedText: word,
+      translatedText: normalizePlainTextOutput(translation, word),
+      phoneticText: normalizeDictionaryPhonetic(phonetic),
+      speechText: word,
+    },
+  };
+}
+
+function dictionaryShardName(value: string): string {
+  const normalized = value.toLowerCase();
+  const first = normalized[0] ?? "_";
+  const second = normalized[1];
+  return `${first}${second && /[a-z]/.test(second) ? second : "_"}`;
 }
 
 async function readCompletionBody(response: Response): Promise<{
@@ -323,7 +372,6 @@ function buildPlainTranslationPrompt(): string {
     "Translate between English and Simplified Chinese.",
     "Return only the translation.",
     "For a single English word with multiple senses, return 2 to 6 common meanings separated by ；.",
-    "If the input is exactly one misspelled English word, return SPELL ERROR.",
   ].join("\n");
 }
 
@@ -529,6 +577,17 @@ function normalizeMetadataText(value: unknown): string {
     .trim();
 }
 
+function normalizeDictionaryPhonetic(value: unknown): string {
+  const phonetic =
+    typeof value === "string"
+      ? value
+          .replace(/\s+/g, " ")
+          .trim()
+      : "";
+  if (!phonetic || /^[/\[].*[/\]]$/.test(phonetic)) return phonetic;
+  return `/${phonetic}/`;
+}
+
 function normalizeSpeechText(value: unknown, sourceText: string, translatedText: string): string {
   if (translatedText.trim() === SPELL_ERROR) return "";
   const provided = normalizeMetadataText(value);
@@ -575,7 +634,7 @@ function containsLatin(value: string): boolean {
 }
 
 function isSingleEnglishWord(value: string): boolean {
-  return /^[A-Za-z]+(?:'[A-Za-z]+)?$/.test(value.trim());
+  return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(value.trim());
 }
 
 function normalizeTranslationBySource(value: string, sourceText: string): string {

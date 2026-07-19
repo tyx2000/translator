@@ -1,12 +1,13 @@
 # Vocabulary Worker
 
-Personal Cloudflare Worker for English-Chinese translation with DeepSeek, D1 history storage, and KV cache.
+Personal Cloudflare Worker for English-Chinese translation with an ECDICT-backed word dictionary, DeepSeek sentence translation, D1 history storage, and KV-backed dictionary shards/cache.
 
 ## What is included
 
 - `GET /` serves the translation interface.
-- `POST /api/translate` translates between English and Chinese through `deepseek-v4-flash`.
-- Single-word inputs return plain-text dictionary-style parts of speech, meanings, and example sentences.
+- `POST /api/translate` looks up English words in ECDICT and translates other input through `deepseek-v4-flash`.
+- Correct English words return their available Chinese meanings and phonetic transcription without an AI request.
+- Unknown single English words return `SPELL ERROR` and are not added to history.
 - Pressing Enter triggers translation. Use Shift+Enter for a line break.
 - The History button opens a 15-item paginated translation history table with per-row deletion.
 - D1 stores translation history.
@@ -66,6 +67,19 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
+## Dictionary data
+
+ECDICT data is downloaded and imported separately, so the large generated files are never committed to Git. The importer stores the dictionary as small prefix shards in the existing Workers KV namespace:
+
+```bash
+npm run dictionary:download
+npm run dictionary:build
+npm run dictionary:import:local
+npm run dictionary:import:remote
+```
+
+The metadata key is uploaded last, so translation continues to use DeepSeek during an incomplete import. See `THIRD_PARTY_NOTICES.md` for the dataset license.
+
 ## Development
 
 ```bash
@@ -93,7 +107,7 @@ curl -s http://127.0.0.1:8787/api/translate \
 }
 ```
 
-The service automatically decides English-to-Chinese or Chinese-to-English and always uses `deepseek-v4-flash`. Vocabulary entries use plain text with part-of-speech abbreviations such as `n.`, `v.`, and `adj.`.
+The service automatically decides English-to-Chinese or Chinese-to-English. Single English words use the local dictionary; phrases, sentences, and Chinese text use `deepseek-v4-flash`.
 
 ### Translation history
 
