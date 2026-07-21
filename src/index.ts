@@ -36,7 +36,7 @@ const HTML_HEADERS = {
 };
 
 const FIXED_MODEL = "deepseek-v4-flash";
-const PROMPT_VERSION = "dictionary-first-v23";
+const PROMPT_VERSION = "dictionary-phrases-v24";
 const SPELL_ERROR = "SPELL ERROR";
 const DICTIONARY_PREFIX = "dictionary:ecdict:v1";
 const DICTIONARY_METADATA_KEY = `${DICTIONARY_PREFIX}:metadata`;
@@ -80,6 +80,9 @@ export default {
 async function translate(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const body = await readJson<TranslationRequest>(request);
   const text = requiredString(body.text, "text");
+  const dictionaryKey = normalizeDictionaryKey(text);
+  const isDictionaryCandidate = isDictionaryLookupKey(dictionaryKey);
+  const isSingleWordInput = isDictionaryCandidate && isSingleEnglishWord(dictionaryKey);
   const cacheKey = await sha256(JSON.stringify({ text, model: FIXED_MODEL, promptVersion: PROMPT_VERSION }));
 
   const cached = await env.TRANSLATION_CACHE.get(`translation:${cacheKey}`, "json");
@@ -114,7 +117,17 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     // Bad legacy row: fall through so a fresh translation upserts over it.
   }
 
-  if (!isSingleEnglishWord(text)) {
+  let generated: GeneratedTranslation | null = null;
+  if (isDictionaryCandidate) {
+    const dictionary = await lookupDictionaryEntry(env, dictionaryKey);
+    if (dictionary.ready && dictionary.entry) {
+      generated = dictionary.entry;
+    } else if (dictionary.ready && isSingleWordInput) {
+      return spellingErrorResponse(text);
+    }
+  }
+
+  if (!generated && !isSingleWordInput) {
     const existingByText = await env.DB.prepare(
       `
         SELECT * FROM translations
@@ -138,16 +151,7 @@ async function translate(request: Request, env: Env, ctx: ExecutionContext): Pro
     }
   }
 
-  let generated: GeneratedTranslation;
-  if (isSingleEnglishWord(text)) {
-    const dictionary = await lookupDictionaryEntry(env, text);
-    if (dictionary.ready) {
-      if (!dictionary.entry) return spellingErrorResponse(text);
-      generated = dictionary.entry;
-    } else {
-      generated = await requestDeepSeekTranslation(env, text);
-    }
-  } else {
+  if (!generated) {
     generated = await requestDeepSeekTranslation(env, text);
   }
 
@@ -221,16 +225,16 @@ async function requestDeepSeekTranslation(
 
 async function lookupDictionaryEntry(
   env: Env,
-  text: string,
+  dictionaryKey: string,
 ): Promise<{ ready: boolean; entry: GeneratedTranslation | null }> {
-  const shardKey = `${DICTIONARY_PREFIX}:shard:${dictionaryShardName(text)}`;
+  const shardKey = `${DICTIONARY_PREFIX}:shard:${dictionaryShardName(dictionaryKey)}`;
   const [metadata, shard] = await Promise.all([
     env.TRANSLATION_CACHE.get<DictionaryMetadata>(DICTIONARY_METADATA_KEY, "json"),
     env.TRANSLATION_CACHE.get<DictionaryShard>(shardKey, "json"),
   ]);
 
   if (!metadata?.ready) return { ready: false, entry: null };
-  const dictionaryEntry = shard?.[text.toLowerCase()];
+  const dictionaryEntry = shard?.[dictionaryKey];
   if (!dictionaryEntry) return { ready: true, entry: null };
 
   const [word, phonetic, translation] = dictionaryEntry;
@@ -247,10 +251,27 @@ async function lookupDictionaryEntry(
 }
 
 function dictionaryShardName(value: string): string {
-  const normalized = value.toLowerCase();
-  const first = normalized[0] ?? "_";
-  const second = normalized[1];
+  const first = value[0] ?? "_";
+  const second = value[1];
   return `${first}${second && /[a-z]/.test(second) ? second : "_"}`;
+}
+
+function normalizeDictionaryKey(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/, "")
+    .trim();
+}
+
+function isDictionaryLookupKey(value: string): boolean {
+  if (!value || value.length > 160 || !/^[a-z]/.test(value) || containsCjk(value)) return false;
+  if (value.split(" ").length > 12) return false;
+  return /^[a-z0-9][a-z0-9 '&(),./:-]*$/.test(value);
 }
 
 async function readCompletionBody(response: Response): Promise<{

@@ -5,8 +5,8 @@ Personal Cloudflare Worker for English-Chinese translation with an ECDICT-backed
 ## What is included
 
 - `GET /` serves the translation interface.
-- `POST /api/translate` looks up English words in ECDICT and translates other input through `deepseek-v4-flash`.
-- Correct English words return their available Chinese meanings and phonetic transcription without an AI request.
+- `POST /api/translate` looks up English words, phrases, idioms, and fixed expressions in ECDICT and translates other input through `deepseek-v4-flash`.
+- Dictionary matches return their available Chinese meanings and phonetic transcription without an AI request.
 - Unknown single English words return `SPELL ERROR` and are not added to history.
 - Pressing Enter triggers translation. Use Shift+Enter for a line break.
 - The History button opens a 15-item paginated translation history table with per-row deletion.
@@ -79,6 +79,11 @@ npm run dictionary:import:remote
 ```
 
 The metadata key is uploaded last, so translation continues to use DeepSeek during an incomplete import. See `THIRD_PARTY_NOTICES.md` for the dataset license.
+If an upload is interrupted, resume from the failed file without rewriting earlier KV keys:
+
+```bash
+npm run dictionary:import:remote -- --from=0004-shards.json
+```
 
 ## Development
 
@@ -107,7 +112,7 @@ curl -s http://127.0.0.1:8787/api/translate \
 }
 ```
 
-The service automatically decides English-to-Chinese or Chinese-to-English. Single English words use the local dictionary; phrases, sentences, and Chinese text use `deepseek-v4-flash`.
+The service automatically decides English-to-Chinese or Chinese-to-English. English dictionary entries use KV; unmatched phrases, sentences, and Chinese text use `deepseek-v4-flash`.
 
 ### Translation history
 

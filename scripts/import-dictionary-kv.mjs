@@ -4,11 +4,17 @@ import path from "node:path";
 
 const mode = process.argv[2];
 if (mode !== "--local" && mode !== "--remote") {
-  throw new Error("Usage: node scripts/import-dictionary-kv.mjs --local|--remote");
+  throw new Error(
+    "Usage: node scripts/import-dictionary-kv.mjs --local|--remote [--from=filename]",
+  );
 }
 
 const inputDir = path.resolve(".dictionary/kv");
-const files = (await readdir(inputDir)).filter((file) => file.endsWith(".json")).sort();
+const from = process.argv.find((argument) => argument.startsWith("--from="))?.slice("--from=".length);
+const files = (await readdir(inputDir))
+  .filter((file) => file.endsWith(".json"))
+  .sort()
+  .filter((file) => !from || file >= from);
 if (!files.length) throw new Error(`No KV bulk files found in ${inputDir}`);
 
 for (const [index, file] of files.entries()) {

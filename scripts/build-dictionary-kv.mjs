@@ -9,7 +9,6 @@ const sourceVersion = new Date().toISOString().slice(0, 10);
 const dictionaryPrefix = "dictionary:ecdict:v1";
 const bulkFileSize = 100;
 const shards = new Map();
-let importedRows = 0;
 
 function cleanField(value) {
   return String(value || "")
@@ -19,8 +18,22 @@ function cleanField(value) {
     .trim();
 }
 
-function isDictionaryWord(value) {
-  return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(value);
+function normalizeDictionaryKey(value) {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/, "")
+    .trim();
+}
+
+function isDictionaryLookupKey(value) {
+  if (!value || value.length > 160 || !/^[a-z]/.test(value)) return false;
+  if (value.split(" ").length > 12) return false;
+  return /^[a-z0-9][a-z0-9 '&(),./:-]*$/.test(value);
 }
 
 function shardName(value) {
@@ -49,21 +62,24 @@ const parser = createReadStream(sourcePath).pipe(
 for await (const record of parser) {
   const word = cleanField(record.word);
   const translation = cleanField(record.translation);
-  if (!word || !translation || !isDictionaryWord(word)) continue;
+  const normalizedWord = normalizeDictionaryKey(word);
+  if (!translation || !isDictionaryLookupKey(normalizedWord)) continue;
 
-  const normalizedWord = word.toLowerCase();
   const shard = shards.get(shardName(normalizedWord));
   shard[normalizedWord] = [word, cleanField(record.phonetic), translation];
-  importedRows += 1;
 }
 
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
+const entryCount = [...shards.values()].reduce(
+  (total, entries) => total + Object.keys(entries).length,
+  0,
+);
 
 const disabledMetadata = [
   {
     key: `${dictionaryPrefix}:metadata`,
-    value: JSON.stringify({ ready: false, version: sourceVersion, entries: importedRows }),
+    value: JSON.stringify({ ready: false, version: sourceVersion, entries: entryCount }),
   },
 ];
 await writeFile(path.join(outputDir, "0000-metadata-disabled.json"), JSON.stringify(disabledMetadata));
@@ -82,11 +98,11 @@ for (let index = 0; index < bulkEntries.length; index += bulkFileSize) {
 const metadata = [
   {
     key: `${dictionaryPrefix}:metadata`,
-    value: JSON.stringify({ ready: true, version: sourceVersion, entries: importedRows }),
+    value: JSON.stringify({ ready: true, version: sourceVersion, entries: entryCount }),
   },
 ];
 await writeFile(path.join(outputDir, "9999-metadata.json"), JSON.stringify(metadata));
 
 console.log(
-  `Prepared ${importedRows.toLocaleString()} dictionary entries in ${bulkEntries.length} KV shards.`,
+  `Prepared ${entryCount.toLocaleString()} dictionary entries in ${bulkEntries.length} KV shards.`,
 );
