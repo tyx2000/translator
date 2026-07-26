@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -20,6 +21,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -73,7 +75,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     super.onCreate(savedInstanceState);
     getWindow().setStatusBarColor(Color.WHITE);
     getWindow().setNavigationBarColor(Color.WHITE);
-    getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      getWindow().setDecorFitsSystemWindows(false);
+    } else {
+      getWindow().getDecorView().setSystemUiVisibility(
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+        View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+      );
+    }
 
     dictionaryDatabase = new DictionaryDatabase(this);
     historyDatabase = new HistoryDatabase(this);
@@ -94,8 +105,37 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
-    root.setPadding(dp(16), dp(12), dp(16), dp(12));
+    int horizontalPadding = dp(16);
+    int topPadding = dp(12);
+    int bottomPadding = dp(12);
+    root.setPadding(horizontalPadding, topPadding, horizontalPadding, bottomPadding);
+    root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+      int left;
+      int top;
+      int right;
+      int bottom;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Insets systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars());
+        left = systemBars.left;
+        top = systemBars.top;
+        right = systemBars.right;
+        bottom = systemBars.bottom;
+      } else {
+        left = windowInsets.getSystemWindowInsetLeft();
+        top = windowInsets.getSystemWindowInsetTop();
+        right = windowInsets.getSystemWindowInsetRight();
+        bottom = windowInsets.getSystemWindowInsetBottom();
+      }
+      view.setPadding(
+        horizontalPadding + left,
+        topPadding + top,
+        horizontalPadding + right,
+        bottomPadding + bottom
+      );
+      return windowInsets;
+    });
     root.setLayoutParams(matchParent());
+    root.requestApplyInsets();
 
     root.addView(createHeader());
     root.addView(createInputHeader());
