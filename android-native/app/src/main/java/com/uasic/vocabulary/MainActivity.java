@@ -407,14 +407,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
   }
 
   private void showHistory() {
-    Dialog dialog = new Dialog(this);
+    Dialog dialog = new Dialog(this, R.style.AppTheme);
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
-    root.setPadding(dp(32), dp(32), dp(32), dp(32));
     root.setBackgroundColor(Color.WHITE);
 
     LinearLayout header = new LinearLayout(this);
     header.setGravity(Gravity.CENTER_VERTICAL);
+    header.setPadding(dp(32), 0, dp(32), 0);
     TextView title = label("History", 16, COLOR_TEXT);
     title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
     header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -425,14 +425,17 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     root.addView(divider());
 
     ScrollView scroll = new ScrollView(this);
+    scroll.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+    scroll.setScrollbarFadingEnabled(false);
     LinearLayout historyItems = new LinearLayout(this);
     historyItems.setOrientation(LinearLayout.VERTICAL);
+    historyItems.setPadding(dp(32), 0, dp(32), 0);
     scroll.addView(historyItems, matchWidthWrap());
     root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
     LinearLayout footer = new LinearLayout(this);
     footer.setGravity(Gravity.CENTER_VERTICAL);
-    footer.setPadding(0, dp(8), 0, 0);
+    footer.setPadding(dp(32), dp(8), dp(32), 0);
     TextView pageState = label("Page 1", 13, COLOR_MUTED);
     footer.addView(pageState, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
     Button previous = createButton("Prev", false);
@@ -467,23 +470,63 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
       loadPage[0].run();
     });
 
+    int contentPadding = dp(32);
+    root.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+      int left;
+      int top;
+      int right;
+      int bottom;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Insets systemBars = windowInsets.getInsets(WindowInsets.Type.systemBars());
+        left = systemBars.left;
+        top = systemBars.top;
+        right = systemBars.right;
+        bottom = systemBars.bottom;
+      } else {
+        left = windowInsets.getSystemWindowInsetLeft();
+        top = windowInsets.getSystemWindowInsetTop();
+        right = windowInsets.getSystemWindowInsetRight();
+        bottom = windowInsets.getSystemWindowInsetBottom();
+      }
+      view.setPadding(0, top, 0, bottom);
+      header.setPadding(contentPadding + left, 0, contentPadding + right, 0);
+      historyItems.setPadding(contentPadding + left, 0, contentPadding + right, 0);
+      footer.setPadding(contentPadding + left, dp(8), contentPadding + right, 0);
+      return windowInsets;
+    });
+
     dialog.setContentView(root);
     Window window = dialog.getWindow();
     if (window != null) {
       window.setBackgroundDrawable(new ColorDrawable(Color.WHITE));
+      window.setStatusBarColor(Color.WHITE);
+      window.setNavigationBarColor(Color.WHITE);
+      int systemUiFlags =
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+        View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        systemUiFlags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+      }
+      window.getDecorView().setSystemUiVisibility(systemUiFlags);
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        window.setDecorFitsSystemWindows(false);
+      }
       window.setLayout(
-        (int) (getResources().getDisplayMetrics().widthPixels * 0.8f),
-        (int) (getResources().getDisplayMetrics().heightPixels * 0.8f)
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.MATCH_PARENT
       );
     }
     dialog.setOnShowListener(ignored -> {
       Window shownWindow = dialog.getWindow();
       if (shownWindow != null) {
         shownWindow.setLayout(
-          (int) (getResources().getDisplayMetrics().widthPixels * 0.8f),
-          (int) (getResources().getDisplayMetrics().heightPixels * 0.8f)
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.MATCH_PARENT
         );
       }
+      root.requestApplyInsets();
       loadPage[0].run();
     });
     dialog.show();
