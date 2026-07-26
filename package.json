@@ -12,6 +12,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply vocabulary --remote",
     "dictionary:download": "node scripts/download-dictionary.mjs",
     "dictionary:build": "node scripts/build-dictionary-kv.mjs",
+    "dictionary:build:android": "node scripts/build-android-dictionary.mjs",
     "dictionary:import:local": "node scripts/import-dictionary-kv.mjs --local",
     "dictionary:import:remote": "node scripts/import-dictionary-kv.mjs --remote"
   },

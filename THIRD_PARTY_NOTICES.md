@@ -2,9 +2,9 @@
 
 ## ECDICT
 
-The optional English-Chinese dictionary dataset is provided by the
+The English-Chinese dictionary dataset and the compiled Android dictionary asset are provided by the
 [ECDICT project](https://github.com/skywind3000/ECDICT) under the MIT License.
-The dataset is downloaded and imported separately and is not stored in this repository.
+The source CSV is downloaded separately; the Android app includes a generated SQLite subset for offline single-word lookup.
 
 Copyright (c) 2025 Linwei
 

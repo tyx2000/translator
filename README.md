@@ -2,6 +2,8 @@
 
 Personal Cloudflare Worker for English-Chinese translation with an ECDICT-backed word dictionary, DeepSeek sentence translation, D1 history storage, and KV-backed dictionary shards/cache.
 
+The repository also contains a native Android app in `android-native`. It bundles the single-word dictionary for offline lookup and calls the Worker only for phrases, sentences, and Chinese input.
+
 ## What is included
 
 - `GET /` serves the translation interface.
@@ -83,6 +85,12 @@ If an upload is interrupted, resume from the failed file without rewriting earli
 
 ```bash
 npm run dictionary:import:remote -- --from=0004-shards.json
+```
+
+Build the native Android SQLite asset from the same downloaded CSV:
+
+```bash
+npm run dictionary:build:android
 ```
 
 ## Development
