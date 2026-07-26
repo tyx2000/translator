@@ -363,6 +363,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     setLoading(false);
     setStatus("Ready");
     input.requestFocus();
+    input.post(() -> {
+      InputMethodManager manager = (InputMethodManager) getSystemService(
+        Context.INPUT_METHOD_SERVICE
+      );
+      if (manager != null) manager.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+    });
   }
 
   private void setLoading(boolean loading) {
