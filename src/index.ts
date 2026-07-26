@@ -307,8 +307,9 @@ async function requestPlainTranslation(
     },
     body: JSON.stringify({
       model: FIXED_MODEL,
+      thinking: { type: "disabled" },
       temperature: 0,
-      max_tokens: Math.min(2000, Math.max(100, 50 + text.length * 2)),
+      max_tokens: Math.min(2000, Math.max(256, 80 + text.length * 3)),
       messages: [
         { role: "system", content: buildPlainTranslationPrompt() },
         {
